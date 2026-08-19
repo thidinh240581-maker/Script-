@@ -2552,8 +2552,24 @@ Tabs.Fight:Toggle({
     Callback = function(state)
         getgenv().AutoKillLowestHealthPlr = state
         getgenv().TeleportDistance = 5
+        
+        -- Nếu tắt Auto, tự động tắt luôn tàng hình cho an toàn
+        if not state then
+            getgenv().InvisibilityEnabled = false
+        end
 
         local myRootPart = nil
+
+        -- ================= CÁC TỌA ĐỘ ĐỨNG CHỜ =================
+        local idleSpots = {
+            CFrame.new(1063, 190, 23006),
+            CFrame.new(1063, 131, 23006),
+            CFrame.new(1063, 405, 23006),
+            CFrame.new(1063, 30, 23006)
+        }
+        local currentSpotIndex = 1
+        local lastSwitchTime = 0
+        -- ========================================================
 
         -- FIX: Guard against nil character during die/respawn transition
         local function UpdateRootPart()
@@ -2621,6 +2637,9 @@ Tabs.Fight:Toggle({
                                 return
                             end
 
+                            -- TẮT TÀNG HÌNH KHI CHUẨN BỊ ĐÁNH MỤC TIÊU
+                            getgenv().InvisibilityEnabled = false
+
                             -- Teleport behind target
                             Player.Character:SetPrimaryPartCFrame(CFrame.new(
                                 target.Position - Vector3.new(0, target.Size.Y / 2, 0)
@@ -2650,9 +2669,21 @@ Tabs.Fight:Toggle({
                                 end
                             end
                         else
-                            -- No valid target found: wait at Mountain idle spot
+                            -- KHÔNG CÓ MỤC TIÊU: BẬT TÀNG HÌNH VÀ CYCLE ĐIỂM CHỜ MỖI 1.5S
+                            getgenv().InvisibilityEnabled = true
+
+                            -- Kiểm tra nếu đã trôi qua 1.5 giây kể từ lần dịch chuyển trước
+                            if os.clock() - lastSwitchTime >= 1.5 then
+                                currentSpotIndex = currentSpotIndex + 1
+                                -- Nếu vượt quá danh sách thì quay lại vị trí đầu tiên
+                                if currentSpotIndex > #idleSpots then
+                                    currentSpotIndex = 1
+                                end
+                                lastSwitchTime = os.clock()
+                            end
+
                             if Player.Character and Player.Character:FindFirstChild("HumanoidRootPart") then
-                                Player.Character.HumanoidRootPart.CFrame = CFrame.new(155, 628, -447)
+                                Player.Character.HumanoidRootPart.CFrame = idleSpots[currentSpotIndex]
                             end
                         end
                     end
