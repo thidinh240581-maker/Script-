@@ -339,6 +339,12 @@ _G.MaxBringMobs = _G.MaxBringMobs or 6
 
 BringEnemy = function(Mon)
     if not _B then return end
+    -- [FIX PERF 9] PHAN TICH: farm loop goi BringEnemy moi Sec=0.1s; moi lan goi tao den
+    -- 6 tween MOI (TweenInfoBring 0.3s) + 6 closure "Completed:Once" + sethiddenproperty
+    -- => ~60 TweenService:Create moi giay, churn lien tuc -> FPS tut dan theo thoi gian farm.
+    -- Gate 0.5s: quai van duoc gom don (tween 0.3s kip hoan thanh) ma chi tao ~12 tween/s.
+    if tick() - (__DIO_LastBring or 0) < 0.5 then return end
+    __DIO_LastBring = tick()
 
     local plr = game.Players.LocalPlayer  
     local char = plr.Character  
@@ -1101,6 +1107,14 @@ _tp = function(target)
         __speed = tonumber(_G.BoatTweenSpeed) or __speed
     end
     __speed = math.max(__speed, 1)
+    -- [FIX PERF 7] (yeu cau user): tang len 600 CHI khi tween NGUOI DI BO (khong Sit);
+    -- khi dang NGOI THUYEN luon dung BoatTweenSpeed, KHONG boost 600.
+    -- Dieu kien: gan dich (<=150 stud) -> 600 de ky cuoi khong cham; het tween den noi,
+    -- cac loi _tp ke tiep o xa tu ve dung speed slider (speed tinh lai tung lan goi).
+    -- Muon doi khoang cach "gan dich" thi sua so 150 ben duoi.
+    if not (__humTween and __humTween.Sit) and distance <= 60 then
+        __speed = 600
+    end
     -- [FIX FPS 1] phan tich: moi loi _tp tao 1 tween MOI tren cung block "block" ma khong
     -- huy tween cu; cac loop camp (Rip Indra, Gravestone, FrozenTP...) goi _tp 10 lan/s
     -- => hang chuc tween cung dang "Playing" tranh nhau property CFrame -> FPS tut dan.
@@ -4211,12 +4225,13 @@ end})
 Tabs.Settings:AddSlider({
     Name = "Speed Tween",
     Min = 1,
-    Max = 300,
-    Default = 225,
+    Max = 500,
+    Default = 300,
     Increment = 1,
     Callback = function(Value)
         -- [FIXED] đã nối function: điều khiển tốc độ tween của player (_tp đọc _G.TweenSpeed)
-        _G.TweenSpeed = math.clamp(math.floor(Value + 0.5), 1, 300)
+        -- [FIX PERF 7] Max 300 -> 500 theo yêu cầu (clamp theo đúng Max của slider)
+        _G.TweenSpeed = math.clamp(math.floor(Value + 0.5), 1, 500)
     end
 }) -- [FIXED] function đã thêm
 Tabs.Settings:AddToggle({
@@ -6899,6 +6914,8 @@ spawn(function()
   end
 end)
 
+
+
 Tabs.Race:AddSection("Mystic Island / Full Moon")
 local FullMOOn = Tabs.Race:AddParagraph("FullMoon Status", "")
 local Ismirage = Tabs.Race:AddParagraph("Mirage Island Status", "")
@@ -8552,6 +8569,7 @@ Tabs.SeaEvent:AddSlider({
     Increment = 1,
     Callback = function(Value)
         -- [FIXED] đã nối function: tốc độ tween riêng khi đang NGỒI THUYỀN (_tp đọc _G.BoatTweenSpeed)
+        -- [FIX PERF 7] clamp 1..300 trùng Max slider (đã đúng)
         _G.BoatTweenSpeed = math.clamp(math.floor(Value + 0.5), 1, 300)
     end
 }) -- [FIXED] function đã thêm
@@ -8727,7 +8745,9 @@ spawn(function()
     end
   end
 end)
-spawn(function()while task.wait(Sec)do pcall(function()for a,b in pairs(workspace.Boats:GetChildren())do for c,d in pairs(workspace.Boats[b.Name]:GetDescendants())do if d:IsA("BasePart")then if _G.SailBoats or _G.Prehis_Find or _G.FindMirage or _G.FrozenDimension or _G.SailBoat_Hydra or _G.AutofindKitIs then d.CanCollide=false else d.CanCollide=true end end end end end)end end)
+spawn(function()while task.wait(0.5)do pcall(function() -- [FIX PERF 11] Sec(0.1) -> 0.5 + khong co thuyen thi bo qua: truoc day quet GetDescendants TAT CA thuyen 10 lan/s VA ghi CanCollide=true len moi part ke ca khi tat het toggle
+if #workspace.Boats:GetChildren() == 0 then return end
+for a,b in pairs(workspace.Boats:GetChildren())do for c,d in pairs(workspace.Boats[b.Name]:GetDescendants())do if d:IsA("BasePart")then if _G.SailBoats or _G.Prehis_Find or _G.FindMirage or _G.FrozenDimension or _G.SailBoat_Hydra or _G.AutofindKitIs then d.CanCollide=false else d.CanCollide=true end end end end end)end end)
 
 Tabs.SeaEvent:AddSection("Entity Sea Event")
 
@@ -9177,7 +9197,7 @@ Callback = function(Value)
   _G.FrozenTP = Value
 end})
 spawn(function()
-  while task.wait(.1) do
+  while task.wait(0.5) do -- [FIX PERF 10] 0.1 -> 0.5: moi vong goi _tp + InvokeServer "OpenLeviathanGate" (spam remote 10 lan/s khi bat)
     if _G.FrozenTP then
       pcall(function()
       if workspace.Map:FindFirstChild("LeviathanGate") then _tp(workspace.Map.LeviathanGate.CFrame) replicated:WaitForChild("Remotes"):WaitForChild("CommF_"):InvokeServer("OpenLeviathanGate") end
@@ -9195,7 +9215,7 @@ end})
 
 local isRunning = false
 task.spawn(function()
-    while task.wait(0.5) do
+    while task.wait(1) do -- [FIX PERF 10] 0.5 -> 1.0: moi vong quet 2 lan Workspace:GetDescendants() (rat nang) -> 1 lan/s du
         if _G.ShotHL and not isRunning then
             isRunning = true
             pcall(function()
@@ -12469,7 +12489,9 @@ end
 CameraShakerR = require(game.ReplicatedStorage.Util.CameraShaker)
 CameraShakerR:Stop()
 get_Monster=function()for a,b in pairs(workspace.Enemies:GetChildren())do local c=b:FindFirstChild("UpperTorso")or b:FindFirstChild("Head")if b:FindFirstChild("HumanoidRootPart",true)and c then if(b.Head.Position-plr.Character.HumanoidRootPart.Position).Magnitude<=50 then return true,c.Position end end end;for a,d in pairs(workspace.SeaBeasts:GetChildren())do if d:FindFirstChild("HumanoidRootPart")and d:FindFirstChild("Health")and d.Health.Value>0 then return true,d.HumanoidRootPart.Position end end;for a,d in pairs(workspace.Enemies:GetChildren())do if d:FindFirstChild("Health")and d.Health.Value>0 and d:FindFirstChild("VehicleSeat")then return true,d.Engine.Position end end end
-Actived=function()local a=game.Players.LocalPlayer.Character:FindFirstChildOfClass("Tool")for b,c in next,getconnections(a.Activated)do if typeof(c.Function)=='function'then getupvalues(c.Function)end end end
+Actived=function()local a=game.Players.LocalPlayer.Character:FindFirstChildOfClass("Tool")if not a then return end -- [FIX PERF 8] khong co tool thi thoat (truoc: a.Activated -> loi moi lan)
+local __now=tick() if __now-(__DIO_LastActived or 0)<0.5 then return end __DIO_LastActived=__now -- [FIX PERF 8] getconnections+getupvalues nang CPU -> chi 2 lan/s du dung
+for b,c in next,getconnections(a.Activated)do if typeof(c.Function)=='function'then getupvalues(c.Function)end end end
 task.spawn(function()
   RunSer.Heartbeat:Connect(function()
     pcall(function()      
@@ -12480,7 +12502,7 @@ task.spawn(function()
       _G.__DIONoCdLast = tick()
       AttackNoCoolDown()
       local Pretool = game.Players.LocalPlayer.Character:FindFirstChildOfClass("Tool")
-      local ToolTip = Pretool.ToolTip
+      local ToolTip = Pretool and Pretool.ToolTip -- [FIX PERF 8] nil-guard: khong co tool cung khong loi pcall
       local MobAura, Mon = get_Monster()      
       if ToolTip == "Blox Fruit" then
         if MobAura then           
@@ -12645,6 +12667,9 @@ function HitRegistrationModule.Execute()
         local children = folder:GetChildren()
         for i = 1, #children do
             local target = children[i]
+            -- [FIX PERF 8] gioi han tong so diem hit: moi them diem = server tra them VFX
+            -- (hieu ung danh) quanh nguoi -> client phai render -> FPS tut. 12 du de dame.
+            if #hitTargets >= 12 then break end
             local humanoid = target:FindFirstChild("Humanoid")
             local rootPart = target:FindFirstChild("HumanoidRootPart")
             
@@ -12655,6 +12680,7 @@ function HitRegistrationModule.Execute()
                     for _, child in ipairs(targetChildren) do
                         if child:IsA("BasePart") then
                             table.insert(hitTargets, {target, child})
+                            if #hitTargets >= 12 then break end
                         end
                     end
                 end
@@ -12721,14 +12747,14 @@ local function StartMainLoops()
         end
     end)
 
-    -- [FIX LAG] HitRegistration cũ chạy MỖI FRAME qua Heartbeat + InvokeServer seed => spam remote.
+    -- [FIX LAG]HitRegistration cũ chạy MỖI FRAME qua Heartbeat + InvokeServer seed => spam remote.
     -- Giờ vòng lặp 0.15s, chỉ chạy khi Fast Attack bật.
     task.spawn(function()
         while true do
             if FastAttackModule.Enabled and _G.Seriality then
                 pcall(HitRegistrationModule.Execute)
             end
-            task.wait(0.15)
+            task.wait(0.3) -- [FIX PERF 8] 0.15 -> 0.3: he HitRegistration nang nhat (seed InvokeServer + remote ma hoa) nen ha tan suat; he ExecuteFastAttack van giu 0.1
         end
     end)
 end
@@ -12797,8 +12823,8 @@ Window:Notify({
   Content = "DIO Hub Load....",
   Image = "rbxassetid://105848560127717",
   Duration = 5
-}) 
-
+})
+  
 Window:Notify({
    Title = "Join Discord For new Update Hub", 
    Content = "link in Tab Info", 
