@@ -574,8 +574,8 @@ statsSetings = function(Num, value)
 end
 -- ==== BRING (ghép từ DIO: gom nhiều quái bằng Tween) ====
 local TweenInfoBring = TweenInfo.new(0.3, Enum.EasingStyle.Linear)
-_G.BringRange = _G.BringRange or 240
-_G.MaxBringMobs = _G.MaxBringMobs or 6
+_G.BringRange = _G.BringRange or 400
+_G.MaxBringMobs = _G.MaxBringMobs or 8
 
 -- Helper: kiểm tra 1 mob có phải quái Raid hay không (để KHÔNG kéo quái raid khi farm thường)
 IsRaidMob = function(mob)
