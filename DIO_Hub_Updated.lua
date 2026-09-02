@@ -1101,6 +1101,20 @@ _tp = function(target)
         __speed = tonumber(_G.BoatTweenSpeed) or __speed
     end
     __speed = math.max(__speed, 1)
+    -- [FIX FPS 1] phan tich: moi loi _tp tao 1 tween MOI tren cung block "block" ma khong
+    -- huy tween cu; cac loop camp (Rip Indra, Gravestone, FrozenTP...) goi _tp 10 lan/s
+    -- => hang chuc tween cung dang "Playing" tranh nhau property CFrame -> FPS tut dan.
+    -- (a) huy tween cu truoc khi tao moi:
+    pcall(function()
+        if __DIO_LastTween then
+            __DIO_LastTween:Cancel()
+            __DIO_LastTween = nil
+        end
+    end)
+    -- (b) block da dung dung noi (cach < 2 stud) -> khong tao tween moi (chet camp-loop churn)
+    if (block.Position - gg.Position).Magnitude < 2 then
+        return
+    end
     local tweenInfo = TweenInfo.new(distance / __speed, Enum.EasingStyle.Linear)
     local tween = game:GetService("TweenService"):Create(block, tweenInfo, {CFrame = gg})    
     
@@ -1109,6 +1123,7 @@ _tp = function(target)
     end  
     
     tween:Play()    
+    __DIO_LastTween = tween -- [FIX FPS 1] luu de lan _tp ke tiep huy dung
     
     task.spawn(function() 
         while tween.PlaybackState == Enum.PlaybackState.Playing do 
@@ -2296,7 +2311,7 @@ Callback = function(Value)
 end})
 
 spawn(function()
-    while task.wait(0.2) do
+    while task.wait(0.5) do -- [FIX FPS 2] 0.2s -> 0.5s du de bat chalice dung luc
         if _G.StopWhenChalice and (_G.AutoFarmChest or _G.AutoChestBP) then
             pcall(function()
                 if GetBP("God's Chalice") or GetBP("Sweet Chalice") or GetBP("Fist of Darkness") then
@@ -2825,7 +2840,7 @@ Tabs.Main:AddSection("Farm Elite Hunter")
 
 local Process = Tabs.Main:AddParagraph("Elites Process", "")
 spawn(function()
-    while task.wait(Sec) do
+    while task.wait(2) do -- [FIX FPS 2] 0.1s -> 2s: cu goi remote EliteHunter 10 lan/s ca khi treo
         pcall(function()    
             Process:SetDesc("Elite Progress : " .. replicated.Remotes.CommF_:InvokeServer("EliteHunter", "Progress"))
         end)
@@ -3100,7 +3115,7 @@ end)
 Tabs.Main:AddSection("Farming Cake")
 local MobKilled = Tabs.Main:AddParagraph("Cake Princes", "")
 spawn(function()
-    while task.wait(0.2) do
+    while task.wait(2) do -- [FIX FPS 2] 0.2s -> 2s: remote CakePrinceSpawner 5 lan/s -> 0.5 lan/s
         pcall(function()
             local Killed = string.match(replicated.Remotes.CommF_:InvokeServer("CakePrinceSpawner"), "%d+")
             if Killed then
@@ -3381,7 +3396,7 @@ Tabs.Main:AddSection("Farming Bone")
 
 local CheckingBone = Tabs.Main:AddParagraph("Bones", "")
 spawn(function()
-    while task.wait(0.2) do
+    while task.wait(1) do -- [FIX FPS 2] 0.2s -> 1s (GetM da co cache 2s nen khong con spam remote)
         pcall(function()
             CheckingBone:SetDesc("Bones : " .. GetM("Bones"))
         end)
@@ -3541,12 +3556,18 @@ end})
 spawn(function()
   while task.wait(Sec) do
     if _G.TryLucky then
-    local try_bones_luck = CFrame.new(-8761.3154296875, 164.85829162598, 6161.1567382813)
-      if (plr.Character.HumanoidRootPart.CFrame ~= try_bones_luck) then
-        _tp(CFrame.new(-8761.3154296875, 164.85829162598, 6161.1567382813))
-	 elseif (plr.Character.HumanoidRootPart.CFrame == try_bones_luck) then
+    -- [FIX FPS 5] pcall + nil-guard (chet/respawn = thread chet vien vien) + do khoang cach
+    -- thay cho so sanh CFrame "==" (12 so phai khop tuyet doi -> nhanh invoke co the khong bao gio chay)
+    pcall(function()
+      local __hrpG = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
+      if not __hrpG then return end
+      local try_bones_luck = CFrame.new(-8761.3154296875, 164.85829162598, 6161.1567382813)
+      if ((__hrpG.Position - try_bones_luck.Position).Magnitude > 5) then
+        _tp(try_bones_luck)
+      else
 	   replicated.Remotes.CommF_:InvokeServer("gravestoneEvent",1)
       end
+    end)
     end
   end
 end)
@@ -3560,12 +3581,17 @@ end})
 spawn(function()
   while task.wait(Sec) do
     if _G.Praying then
-    local try_bones_luck = CFrame.new(-8761.3154296875, 164.85829162598, 6161.1567382813)
-      if (plr.Character.HumanoidRootPart.CFrame ~= try_bones_luck) then
-	   _tp(CFrame.new(-8761.3154296875, 164.85829162598, 6161.1567382813))
-      elseif (plr.Character.HumanoidRootPart.CFrame == try_bones_luck) then
+    -- [FIX FPS 5] nhu Try Luck: pcall + nil-guard + khoang cach thay "=="
+    pcall(function()
+      local __hrpG = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
+      if not __hrpG then return end
+      local try_bones_luck = CFrame.new(-8761.3154296875, 164.85829162598, 6161.1567382813)
+      if ((__hrpG.Position - try_bones_luck.Position).Magnitude > 5) then
+	   _tp(try_bones_luck)
+      else
 	   replicated.Remotes.CommF_:InvokeServer("gravestoneEvent",2)
       end
+    end)
     end
   end
 end)
@@ -3974,7 +4000,13 @@ Default = false,
 Callback = function(Value)
   _G.FarmMastery_Dev = Value
 end})
-spawn(function()RunSer.RenderStepped:Connect(function() pcall(function()if _G.FarmMastery_Dev or _G.FarmMastery_G or _G.FarmMastery_S then for a,b in pairs(plr.PlayerGui.Notifications:GetChildren())do if b.Name=="NotificationTemplate"then if string.find(b.Text,"Skill locked!")then b:Destroy()end end end end end)end) end)
+spawn(function()
+-- [FIX PERF 6] RenderStepped chay MOI FRAME quet Notifications khi bat farm mastery
+-- (pairs GetChildren + string.find x60/s). Chi can 0.2s/lan la du de xoa thong bao
+-- "Skill locked!" -> them gate tick() de ha tai khi farm mastery dai.
+local __NextNotifScan = 0
+RunService.RenderStepped:Connect(function() pcall(function()if _G.FarmMastery_Dev or _G.FarmMastery_G or _G.FarmMastery_S then if tick() < __NextNotifScan then return end __NextNotifScan = tick() + 0.2 for a,b in pairs(plr.PlayerGui.Notifications:GetChildren())do if b.Name=="NotificationTemplate"then if string.find(b.Text,"Skill locked!")then b:Destroy()end end end end end)end)
+end)
 spawn(function()
   while task.wait(Sec) do
     if _G.FarmMastery_Dev then
@@ -6867,13 +6899,11 @@ spawn(function()
   end
 end)
 
-
-
 Tabs.Race:AddSection("Mystic Island / Full Moon")
 local FullMOOn = Tabs.Race:AddParagraph("FullMoon Status", "")
 local Ismirage = Tabs.Race:AddParagraph("Mirage Island Status", "")
 spawn(function()
-    while task.wait(0.2) do
+    while task.wait(0.9) do -- [FIX FPS 2] 0.2s -> 0.9s (leo lich voi cac status khac de khong dong lo)
         if workspace.Map:FindFirstChild("MysticIsland") or workspace._WorldOrigin.Locations:FindFirstChild("Mirage Island") then
             Ismirage:SetDesc("Mirage Island : True")
         else
@@ -7340,7 +7370,7 @@ Tabs.Race:AddSection("Trials Quest V4")
 local CheckTier = Tabs.Race:AddParagraph("Tiers V4 Status", "")
 spawn(function()
     pcall(function()
-        while task.wait(0.2) do
+        while task.wait(1.2) do -- [FIX FPS 2] 0.2s -> 1.2s
             CheckTier:SetDesc("Tiers - V4 : " .. " " .. plr.Data.Race.C.Value)
         end
     end)
@@ -8054,7 +8084,7 @@ Tabs.Prehistoric:AddButton({
 Tabs.Prehistoric:AddSection("Prehistoric Island")
 local Check_Volcano = Tabs.Prehistoric:AddParagraph("Prehistoric Island Status", "")
 spawn(function()
-    while task.wait(0.2) do
+    while task.wait(1.1) do -- [FIX FPS 2] 0.2s -> 1.1s
         if workspace.Map:FindFirstChild("PrehistoricIsland") or workspace._WorldOrigin.Locations:FindFirstChild("Prehistoric Island") then
             Check_Volcano:SetDesc("Prehistoric Island : True")
         else
@@ -8497,8 +8527,9 @@ Tabs.SeaEvent:AddToggle({
     end
 })
 spawn(function()
-    while task.wait(0.1) do -- [FIX LAG] mỗi frame -> 0.1s
+    while task.wait(0.5) do -- [FIX FPS 3] 0.1s -> 0.5s + khong co thuyen thi bo qua (GetDescendants nang)
         pcall(function()
+            if #game:GetService("Workspace").Boats:GetChildren() == 0 then return end
             for i, boat in pairs(game:GetService("Workspace").Boats:GetChildren()) do
                 for _, v in pairs(boat:GetDescendants()) do
                     if v:IsA("BasePart") then
@@ -8783,7 +8814,7 @@ end)
 Tabs.SeaEvent:AddSection("Kitsune Island / Event")
 local Check_Kitsu = Tabs.SeaEvent:AddParagraph("Kitsune Island Status", "")
 spawn(function()
-    while task.wait(0.2) do
+    while task.wait(1.3) do -- [FIX FPS 2] 0.2s -> 1.3s
         if workspace.Map:FindFirstChild("KitsuneIsland") or workspace._WorldOrigin.Locations:FindFirstChild("Kitsune Island") then
             Check_Kitsu:SetDesc("Kitsune Island : True")
         else
@@ -8920,7 +8951,7 @@ Tabs.SeaEvent:AddSection("Frozen Dimension Event")
 local FloD = Tabs.SeaEvent:AddParagraph("FrozenDimension Status", "")
 spawn(function()
     pcall(function()
-        while task.wait(0.2) do
+        while task.wait(1.4) do -- [FIX FPS 2] 0.2s -> 1.4s
             if workspace._WorldOrigin.Locations:FindFirstChild('Frozen Dimension') then
                 FloD:SetDesc('Frozen Dimension : True')
             else
@@ -8932,7 +8963,7 @@ end)
 
 local SPYING = Tabs.SeaEvent:AddParagraph("Spy Status", "")
 spawn(function()
-    while task.wait(0.2) do
+    while task.wait(1.5) do -- [FIX FPS 2] 0.2s -> 1.5s: giam remote InfoLeviathan khi treo
         pcall(function()
             local spycheck = string.match(replicated.Remotes.CommF_:InvokeServer("InfoLeviathan", "1"), "%d+")
             if spycheck then 
@@ -9784,7 +9815,7 @@ Tabs.Esp:AddToggle({
             task.spawn(function()
                 while BerryEsp do
                     berriesEsp()
-                    task.wait()
+                    task.wait(0.4) -- [FIX FPS 4] moi frame -> 0.4s
                 end
             end)
         end
@@ -9811,7 +9842,7 @@ Tabs.Esp:AddToggle({
             task.spawn(function()
                 while PlayerEsp do
                     EspPly()
-                    task.wait()
+                    task.wait(0.4) -- [FIX FPS 4] moi frame -> 0.4s
                 end
             end)
         end
@@ -9835,7 +9866,7 @@ Tabs.Esp:AddToggle({
             task.spawn(function()
                 while ChestESP do
                     ChestEsp()
-                    task.wait()
+                    task.wait(0.4) -- [FIX FPS 4] moi frame -> 0.4s
                 end
             end)
         end
@@ -9860,7 +9891,7 @@ Tabs.Esp:AddToggle({
             task.spawn(function()
                 while DevilFruitESP do
                     DevEsp()
-                    task.wait()
+                    task.wait(0.4) -- [FIX FPS 4] moi frame -> 0.4s
                 end
             end)
         end
@@ -9885,7 +9916,7 @@ Tabs.Esp:AddToggle({
             task.spawn(function()
                 while IslandESP do
                     LocationEsp()
-                    task.wait()
+                    task.wait(0.4) -- [FIX FPS 4] moi frame -> 0.4s
                 end
             end)
         end
@@ -9910,7 +9941,7 @@ Tabs.Esp:AddToggle({
             task.spawn(function()
                 while FlowerESP do
                     flowerEsp()
-                    task.wait()
+                    task.wait(0.4) -- [FIX FPS 4] moi frame -> 0.4s
                 end
             end)
         end
@@ -9931,7 +9962,7 @@ Tabs.Esp:AddToggle({
             task.spawn(function()
                 while LegenS do
                     LegenSword()
-                    task.wait()
+                    task.wait(0.4) -- [FIX FPS 4] moi frame -> 0.4s
                 end
             end)
         end
@@ -9952,7 +9983,7 @@ Tabs.Esp:AddToggle({
             task.spawn(function()
                 while ColorEsp do
                     HakiClorEsp()
-                    task.wait()
+                    task.wait(0.4) -- [FIX FPS 4] moi frame -> 0.4s
                 end
             end)
         end
@@ -9977,7 +10008,7 @@ Tabs.Esp:AddToggle({
             task.spawn(function()
                 while ESPGear do
                     gearEsp()
-                    task.wait()
+                    task.wait(0.4) -- [FIX FPS 4] moi frame -> 0.4s
                 end
             end)
         end
@@ -10002,7 +10033,7 @@ Tabs.Esp:AddToggle({
             task.spawn(function()
                 while EspEventIsland do
                     EventIslandEsp()
-                    task.wait()
+                    task.wait(0.4) -- [FIX FPS 4] moi frame -> 0.4s
                 end
             end)
         end
@@ -10023,7 +10054,7 @@ Tabs.Esp:AddToggle({
             task.spawn(function()
                 while advanEsp do
                     AdvanFruitEsp()
-                    task.wait()
+                    task.wait(0.4) -- [FIX FPS 4] moi frame -> 0.4s
                 end
             end)
         end
@@ -10825,7 +10856,7 @@ Tabs.Combat:AddSection("Combat / AimBot")
 local __indexPlayer = Tabs.Combat:AddParagraph("All Players On Server", "")
 
 spawn(function()
-    while task.wait(Sec) do
+    while task.wait(1) do -- [FIX FPS 2] 0.1s -> 1s: dem player khong can 10 lan/s
         pcall(function()
             local playerCount = #game:GetService("Players"):GetPlayers()
             if playerCount == 12 then
@@ -12766,7 +12797,7 @@ Window:Notify({
   Content = "DIO Hub Load....",
   Image = "rbxassetid://105848560127717",
   Duration = 5
-})
+}) 
 
 Window:Notify({
    Title = "Join Discord For new Update Hub", 
