@@ -336,8 +336,8 @@ end
 local TweenService = game:GetService("TweenService")
 local TweenInfoBring = TweenInfo.new(0.45, Enum.EasingStyle.Linear) -- [FIX PERF 15] 0.3 -> 0.45 (thong so Bear Hub): tween dai hon thi it bi goi lai thi giua chung
 
-_G.BringRange = _G.BringRange or 300
-_G.MaxBringMobs = _G.MaxBringMobs or 6
+_G.BringRange = _G.BringRange or 180
+_G.MaxBringMobs = _G.MaxBringMobs or 4
 
 BringEnemy = function(Mon)
     if not _B then return end
