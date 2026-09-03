@@ -11857,22 +11857,43 @@ __DIO_FlyTo = function(targetCF, arriveDist)
     local t0 = tick()
     local lastPos = __hrp.Position
     local lastProgress = tick()
+    -- [FIX CAM-FALL 1/2] PHAN TICH LOI (user screenshot: camera rut xuong duoi mat nuoc khi dang bay):
+    -- luc bay, HRP KHONG duoc neo -> giua cac frame humanoid roi tu do / va vat can -> nhan vat hut xuong,
+    -- camera (bat theo subject) roi theo => cam rơi + giật khong mong muon. Neo HRP trong luc bay thi
+    -- tween di THANG (xuyen qua vat can), khong con roi tu do; camera van bat theo = giu nguyen cam giac
+    -- "nhan vat bay truoc, camera bam sau" ma user thich. THA anchor O MOI nhanh thoat (den noi / het gio / mat char).
+    local anchoredByUs = false
+    local function __DIO_setAnchor(h, state)
+        pcall(function()
+            if h and h.Parent and h.Anchored ~= state then
+                h.Anchored = state
+                anchoredByUs = state
+            end
+        end)
+    end
+    local function __DIO_release()
+        local c = plr.Character
+        local h = c and c:FindFirstChild("HumanoidRootPart")
+        if anchoredByUs and h then __DIO_setAnchor(h, false) end
+        pcall(function() if curTween then curTween:Cancel() end end)
+    end
     while tick() - t0 < 300 do -- tran 300s (cross-sea xa nhat ~62k stud van kip voi speed slider)
         local c = plr.Character
         local h = c and c:FindFirstChild("HumanoidRootPart")
         if not h then break end
         local dist = (h.Position - targetCF.Position).Magnitude
         if dist <= arriveDist then
-            pcall(function() if curTween then curTween:Cancel() end end)
+            __DIO_release() -- [FIX CAM-FALL 2/2] ha anchor TRUOC khi ket luan "den noi" -> nhan vat dung lai binh thuong, camera khong hut
             return true -- DA DEN NOI
         end
         local spd = tonumber(_G.TweenSpeed) or 300
         if spd < 1 then spd = 1 end
-        if dist <= 150 then spd = 600 end -- quy tac boost 600 CHI khi di bo gan dich (spec chung voi _tp)
+        if dist <= 150 then spd = 600 end -- quy tac boost 600 CHI khi gan dich (spec chung voi _tp)
         local stalled = (tick() - lastProgress) > 3 and (h.Position - lastPos).Magnitude < 1
         if not curTween or curTween.PlaybackState ~= Enum.PlaybackState.Playing or stalled then
             -- gui lai tween tu vi tri hien tai (bi vang / tween chet / dung 3s khong tien bo)
             pcall(function() if curTween then curTween:Cancel() end end)
+            __DIO_setAnchor(h, true) -- neo truoc khi bay: khong roi giua cac lan re-issue
             pcall(function()
                 curTween = TS:Create(h, TweenInfo.new(math.max(dist / spd, 0.1), Enum.EasingStyle.Linear), {CFrame = CFrame.new(targetCF.Position)})
                 curTween:Play()
@@ -11886,7 +11907,7 @@ __DIO_FlyTo = function(targetCF, arriveDist)
         end
         task.wait(0.25) -- vong phan xia (di chuyen) - giu 0.25 theo chuan KEEP
     end
-    pcall(function() if curTween then curTween:Cancel() end end)
+    __DIO_release()
     return false -- het thoi gian khong den noi
 end
 BuyMelee = function(npcNames, ...)
