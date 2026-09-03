@@ -11785,39 +11785,100 @@ FindMeleeNPC = function(npcNames)
     return nil
 end
 
+-- [FIX BUY-MELEE 1/2] Bang toa do dung cua 11 teacher theo tung Sea — do USER cung cap truc tiep (nguon: user 03-09-2026, khong phai tu mang).
+-- Yeu cau USER: nut Buy Melee phai TWEEN den dung vi tri teacher (chon CF theo sea hien tai) xong MOI goi InvokeServer mua.
+-- Key = tham so dau tien cua lenh mua (voi Dragon Claw, lenh mua la "BlackbeardReward","DragonClaw","2" tai Sabi nen key la "BlackbeardReward").
+local __DIO_BUY_MELEE_CF = {
+    ["BuyBlackLeg"] = { -- Black Leg v1
+        sea1 = CFrame.new(-983.617981, 12.449997, 3990.462891, 0.358573, 0.000000, 0.933502, 0.000000, 1.000000, 0.000000, -0.933502, 0.000000, 0.358573),
+        sea2 = CFrame.new(-4754.378906, 35.104919, -4850.386719, -0.839514, -0.000000, -0.543339, -0.000000, 1.000000, -0.000000, 0.543339, 0.000000, -0.839514),
+        sea3 = CFrame.new(-5044.229492, 371.375519, -3180.169434, 0.933992, -0.000000, 0.357293, -0.000000, 1.000000, 0.000000, -0.357293, -0.000000, 0.933992)
+    },
+    ["BuyElectro"] = { -- Electro v1 (Eletric)
+        sea1 = CFrame.new(-5384.621582, 13.949928, -2150.930420, -0.380358, -0.000000, -0.924840, -0.000000, 1.000000, -0.000000, 0.924840, 0.000000, -0.380358),
+        sea2 = CFrame.new(-4868.625977, 35.104752, -4763.653320, 0.958599, -0.000000, -0.284760, 0.000000, 1.000000, -0.000000, 0.284760, 0.000000, 0.958599),
+        sea3 = CFrame.new(-4995.454102, 314.578491, -3206.252197, -0.873257, -0.000000, 0.487260, -0.000000, 1.000000, -0.000000, -0.487260, -0.000000, -0.873257)
+    },
+    ["BuyFishmanKarate"] = { -- Fishman Karate v1
+        sea1 = CFrame.new(61586.960938, 19.587997, 987.591003, 0.123274, 0.000000, 0.992373, 0.000000, 1.000000, 0.000000, -0.992373, 0.000000, 0.123274),
+        sea2 = CFrame.new(-4956.956543, 35.103775, -4669.130859, -0.987738, -0.000000, -0.156122, -0.000000, 1.000000, -0.000000, 0.156122, 0.000000, -0.987738),
+        sea3 = CFrame.new(-5023.369141, 371.375519, -3188.240723, 0.933992, 0.000000, 0.357293, -0.000000, 1.000000, -0.000000, -0.357293, 0.000000, 0.933992)
+    },
+    ["BlackbeardReward"] = { -- Dragon Claw v1
+        sea2 = CFrame.new(699.028992, 185.660995, 654.895020, -0.034849, 0.000315, -0.999393, 0.000555, 1.000000, 0.000296, 0.999392, -0.000544, -0.034849),
+        sea3 = CFrame.new(-4980.895020, 371.375519, -3205.794189, 0.925798, 0.000000, 0.378020, -0.000000, 1.000000, -0.000000, -0.378020, 0.000000, 0.925798)
+    },
+    ["BuySuperhuman"] = { -- Superhuman
+        sea2 = CFrame.new(1379.682373, 247.490616, -5189.661133, 0.563149, -0.000000, 0.826355, 0.000000, 1.000000, 0.000000, -0.826355, -0.000000, 0.563149),
+        sea3 = CFrame.new(-5004.613770, 371.375488, -3195.397949, 0.999814, 0.000000, 0.019286, -0.000000, 1.000000, -0.000000, -0.019286, 0.000000, 0.999814)
+    },
+    ["BuyDeathStep"] = { -- Death Step v2
+        sea2 = CFrame.new(6356.472168, 296.100006, -6762.770996, -0.544830, -0.000076, 0.838547, -0.000076, 1.000000, 0.000041, -0.838547, -0.000041, -0.544830),
+        sea3 = CFrame.new(-4996.452637, 314.578491, -3220.017822, 0.221792, -0.000000, 0.975094, -0.000000, 1.000000, 0.000000, -0.975094, -0.000000, 0.221792)
+    },
+    ["BuySharkmanKarate"] = { -- Sharkman Karate (Fishman Karate v2)
+        sea2 = CFrame.new(-2599.621826, 238.198334, -10315.998047, -0.374604, 0.000000, 0.927185, 0.000000, 1.000000, 0.000000, -0.927185, 0.000000, -0.374604),
+        sea3 = CFrame.new(-4972.964844, 314.578491, -3220.524658, 0.996246, -0.000000, -0.086563, 0.000000, 1.000000, -0.000000, 0.086563, 0.000000, 0.996246)
+    },
+    ["BuyElectricClaw"] = { -- Electric Claw v2
+        sea3 = CFrame.new(-10368.808594, 331.716705, -10133.301758, -0.561528, 0.000000, 0.827458, 0.000000, 1.000000, -0.000000, -0.827458, 0.000000, -0.561528)
+    },
+    ["BuyDragonTalon"] = { -- Dragon Talon v2
+        sea3 = CFrame.new(5661.897949, 1210.876953, 863.176025, -0.823952, 0.000000, -0.566660, 0.000000, 1.000000, 0.000000, 0.566660, 0.000000, -0.823952)
+    },
+    ["BuyGodhuman"] = { -- Godhuman
+        sea3 = CFrame.new(-13774.325195, 334.685028, -9876.829102, 0.997201, 0.000000, 0.074762, -0.000000, 1.000000, 0.000000, -0.074762, -0.000000, 0.997201)
+    },
+    ["BuySanguineArt"] = { -- Sanguine Art
+        sea3 = CFrame.new(-16515.066406, 22.811996, -188.572998, 0.999392, 0.000000, 0.034869, 0.000000, 1.000000, 0.000000, -0.034869, 0.000000, 0.999392)
+    }
+}
 BuyMelee = function(npcNames, ...)
-    -- (1) TIM NPC theo bang ten
-    local npc = FindMeleeNPC(npcNames)
-    if not npc then
-        pcall(function()
-            Window:Notify({
-                Title = "Buy Melee",
-                Content = "Khong thay NPC " .. tostring(npcNames[1]) .. " tren map nay (co the ban dang o sea khac)",
-                Duration = 3
-            })
-        end)
+    -- [FIX BUY-MELEE 2/2] Khong con tim NPC theo ten (NPC khong load / sai sea -> nut Cam). Chon CF theo sea -> tween -> den noi moi mua.
+    local key = (...)
+    local buyArgs = { ... } -- goi lai qua unpack trong task.spawn (khong dung ... truc tiep trong ham con)
+    local entry = __DIO_BUY_MELEE_CF[key]
+    if not entry then
+        pcall(function() Window:Notify({Title = "Buy Melee", Content = "Khong co toa do teacher cho: " .. tostring(key), Duration = 3}) end)
         return
     end
-    -- (2) Lay CFrame NPC -> tween den. LUU Y (bug an cu): _tp tu huy tween
-    -- khi shouldTween = false, nen phai giu shouldTween = true trong luc di
-    -- va tra lai gia tri cu sau khi xong (khong anh huong toggle dang chay).
-    local npcCF = npc.HumanoidRootPart.CFrame
-    local oldShouldTween = shouldTween
-    shouldTween = true
-    _tp(npcCF * CFrame.new(0, 0, 4)) -- dung truoc mat NPC (le 4 stud khong de index qua nguoi)
-    -- (3) Cho toi noi (toi da 10s) - moi 0.25s kiem tra khoang cach + gui lai tween
-    local t0 = tick()
-    while tick() - t0 < 10 do
+    local targetCF = (sea1 and entry.sea1) or (sea2 and entry.sea2) or entry.sea3
+    if not targetCF then
+        pcall(function() Window:Notify({Title = "Buy Melee", Content = "Khong co toa do cho sea hien tai: " .. tostring(key), Duration = 3}) end)
+        return
+    end
+    task.spawn(function() -- [bai hoc PERF 66] khong block thread UI trong callback khi tween co the rat lau (cross-sea)
+        local standCF = targetCF * CFrame.new(0, 0, 4) -- dung le 4 stud nhu luong cu, khong de dung de len teacher
         local __char = plr.Character
         local __hrp = __char and __char:FindFirstChild("HumanoidRootPart")
-        if not __hrp then break end
-        if (__hrp.Position - npcCF.Position).Magnitude <= 15 then break end
-        _tp(npcCF * CFrame.new(0, 0, 4))
-        task.wait(0.25)
-    end
-    shouldTween = oldShouldTween
-    -- (4) Goi invoke server mua voi dung args cua tung style
-    replicated.Remotes.CommF_:InvokeServer(...)
+        if not __hrp then return end
+        local spd = tonumber(_G.TweenSpeed) or 300
+        if spd < 1 then spd = 1 end
+        local dist0 = (standCF.Position - __hrp.Position).Magnitude
+        local timeout = dist0 / spd + 25 -- du phong cho cross-sea; truoc day cam 10s -> khong bao gio kip cross-sea
+        if timeout < 15 then timeout = 15 end
+        if timeout > 300 then timeout = 300 end
+        local oldShouldTween = shouldTween
+        shouldTween = true -- [bug an cu] _tp tu huy tween khi shouldTween = false, giu true trong luc di roi tra lai
+        pcall(function() Window:Notify({Title = "Buy Melee", Content = "Dang bay den " .. tostring(npcNames[1]) .. " (" .. string.format("%.0f", dist0) .. " studs)", Duration = 3}) end)
+        local t0 = tick()
+        while tick() - t0 < timeout do
+            local c2 = plr.Character
+            local h2 = c2 and c2:FindFirstChild("HumanoidRootPart")
+            if not h2 then break end
+            if (h2.Position - standCF.Position).Magnitude <= 15 then break end
+            _tp(standCF) -- gui lai tween neu bi vang/xa dot xuat
+            task.wait(1) -- [PERF 62 chuan] poll 1s thay 0.25s nhu cu
+        end
+        shouldTween = oldShouldTween
+        local c3 = plr.Character
+        local h3 = c3 and c3:FindFirstChild("HumanoidRootPart")
+        if h3 and (h3.Position - standCF.Position).Magnitude <= 15 then
+            replicated.Remotes.CommF_:InvokeServer(unpack(buyArgs)) -- DA DEN NOI MOI GOI MUA (dung args goc cua tung nut)
+        else
+            pcall(function() Window:Notify({Title = "Buy Melee", Content = "Khong den duoc teacher trong " .. string.format("%.0f", timeout) .. "s — chua mua. Bam nut lan nua de thu lai.", Duration = 4}) end)
+        end
+    end)
 end
 
 Tabs.Shop:AddSection("Fighting - Style")
