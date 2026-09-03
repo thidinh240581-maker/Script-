@@ -189,6 +189,23 @@ weaponSc = function(weapon)
     end
   end
 end
+-- [FIX MODEFARM 1/2] Helper vi tri danh quai dung chung cho Attack.Kill/Kill2/KillSea (moi toggle farm di qua day).
+-- Mode "Normal": cao do = slider "Farm Distance" (mac dinh 20; Fruit 10 / vu khi khac 30).
+-- Mode "Obrit": quay vong tron QUANH MOB ban kinh = FarmDistance, cao 12, mat LUON huong ve mob;
+-- goc quay theo tick() (0.8 rad/s ~ 1 vong/8s) nen on dinh bat ke tan so loop goi Kill.
+_G.ModeFarm = _G.ModeFarm or "Normal"
+_G.FarmDistance = _G.FarmDistance or 20
+__DIO_OrbitA = 0
+__DIO_FarmPos = function(modelCF, h, zOff, yawDeg)
+    if _G.ModeFarm == "Obrit" then
+        local r = math.max(tonumber(_G.FarmDistance) or 20, 10)
+        __DIO_OrbitA = (tick() * 0.8) % (math.pi * 2)
+        local px = modelCF.Position + Vector3.new(math.cos(__DIO_OrbitA) * r, 12, math.sin(__DIO_OrbitA) * r)
+        return CFrame.new(px, modelCF.Position)
+    end
+    local h2 = tonumber(_G.FarmDistance) or h
+    return modelCF * CFrame.new(0, h2, zOff or 0) * CFrame.Angles(0, math.rad(yawDeg or 0), 0)
+end
 local Attack = {}
 	Attack.__index = Attack
 	Attack.Alive = function(model)
@@ -218,9 +235,9 @@ local Attack = {}
 			local Equipped = game.Players.LocalPlayer.Character:FindFirstChildOfClass("Tool")
 			local ToolTip = Equipped.ToolTip
 			if ToolTip == "Blox Fruit" then
-				_tp(model.HumanoidRootPart.CFrame * CFrame.new(0, 10, 0) * CFrame.Angles(0, math.rad(90), 0))
+				_tp(__DIO_FarmPos(model.HumanoidRootPart.CFrame, 10, 0, 90)) -- [FIX MODEFARM] cao do/obrit theo slider
 			else
-				_tp(model.HumanoidRootPart.CFrame * CFrame.new(0, 30, 0) * CFrame.Angles(0, math.rad(180), 0))
+				_tp(__DIO_FarmPos(model.HumanoidRootPart.CFrame, 30, 0, 180)) -- [FIX MODEFARM]
 			end
 			if RandomCFrame then
 				wait(.5)
@@ -247,9 +264,9 @@ local Attack = {}
 			local Equipped = game.Players.LocalPlayer.Character:FindFirstChildOfClass("Tool")
 			local ToolTip = Equipped.ToolTip
 			if ToolTip == "Blox Fruit" then
-				_tp(model.HumanoidRootPart.CFrame * CFrame.new(0, 10, 0) * CFrame.Angles(0, math.rad(90), 0))
+				_tp(__DIO_FarmPos(model.HumanoidRootPart.CFrame, 10, 0, 90)) -- [FIX MODEFARM] cao do/obrit theo slider
 			else
-				_tp(model.HumanoidRootPart.CFrame * CFrame.new(0, 30, 8) * CFrame.Angles(0, math.rad(180), 0))
+				_tp(__DIO_FarmPos(model.HumanoidRootPart.CFrame, 30, 8, 180)) -- [FIX MODEFARM]
 			end
 			if RandomCFrame then
 				wait(0.1)
@@ -276,7 +293,7 @@ local Attack = {}
 			local Equipped = game.Players.LocalPlayer.Character:FindFirstChildOfClass("Tool")
 			local ToolTip = Equipped.ToolTip
 			if ToolTip == "Blox Fruit" then
-				_tp(model.HumanoidRootPart.CFrame * CFrame.new(0, 10, 0) * CFrame.Angles(0, math.rad(90), 0))
+				_tp(__DIO_FarmPos(model.HumanoidRootPart.CFrame, 10, 0, 90)) -- [FIX MODEFARM] cao do/obrit theo slider
 			else
 				notween(model.HumanoidRootPart.CFrame * CFrame.new(0, 50, 8))
 				wait(.85)
@@ -371,8 +388,8 @@ end
 local TweenService = game:GetService("TweenService")
 local TweenInfoBring = TweenInfo.new(0.45, Enum.EasingStyle.Linear) -- [FIX PERF 15] 0.3 -> 0.45 (thong so Bear Hub): tween dai hon thi it bi goi lai thi giua chung
 
-_G.BringRange = _G.BringRange or 300
-_G.MaxBringMobs = _G.MaxBringMobs or 6
+_G.BringRange = _G.BringRange or 180 -- [USER-EDIT] chinh tay user tu ban 99999: 300 -> 180 (giam VFX/FPS khi farm)
+_G.MaxBringMobs = _G.MaxBringMobs or 4 -- [USER-EDIT] chinh tay user: 6 -> 4
 
 BringEnemy = function(Mon)
     if not _B then return end
@@ -4330,6 +4347,50 @@ Tabs.Settings:AddSlider({
         FastAttackModule.Rate = math.clamp(Value, 1, 30) / 100
     end
 })
+-- [FIX MODEFARM 2/2] UI dieu khien farm theo sketch cua user (da sua syntax + dien Min/Max/Default
+-- cho "Farm Distance" bi de trong: 10..100 mac dinh 20 = dung cao do farm hien tai cua hub)
+Tabs.Settings:AddDropdown({
+    Name = "Mode Farm",
+    Options = {"Obrit", "Normal"},
+    Default = "Normal",
+    Callback = function(Value)
+        _G.ModeFarm = Value -- Normal: dung tai cao do "Farm Distance"; Obrit: quay vong quanh mob ban kinh "Farm Distance"
+    end
+})
+
+Tabs.Settings:AddSlider({
+    Name = "mobs Bring",
+    Min = 1,
+    Max = 6,
+    Default = 3,
+    Increment = 1,
+    Callback = function(Value)
+        _G.MaxBringMobs = math.clamp(Value, 1, 6) -- so mob toi da duoc ke ve (BringEnemy doc _G.MaxBringMobs)
+    end
+})
+
+Tabs.Settings:AddSlider({
+    Name = "Bring Distance",
+    Min = 1,
+    Max = 400,
+    Default = 240,
+    Increment = 1,
+    Callback = function(Value)
+        _G.BringRange = math.clamp(Value, 1, 400) -- ban kinh ke mob ve (BringEnemy doc _G.BringRange)
+    end
+})
+
+Tabs.Settings:AddSlider({
+    Name = "Farm Distance",
+    Min = 1,
+    Max = 100,
+    Default = 20,
+    Increment = 1,
+    Callback = function(Value)
+        _G.FarmDistance = math.clamp(Value, 10, 100) -- Normal = do cao danh; Obrit = ban kinh quay quanh mob
+    end
+})
+
 Bringmob = Tabs.Settings:AddToggle({
 Name = "Bring Mobs", 
 Description = "", 
