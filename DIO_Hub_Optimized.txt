@@ -61,6 +61,41 @@ do
   Num_self = 25
 end
 
+-- [FIX BOOT-RAMP 1/2] PHAN TICH (suy luan cua user + census 312 loop): hub load xong thi hang tram spawn-loop
+-- duoc tao trong CUNG mot luot, va SAVE SETTING bat lai nhieu toggle NGAY LUC load -> tic dau cua cac loop
+-- nang XUYEN NHAU dung luc (FPS te ngay khi UI vua xong - dung nhu user suy luan). Sau do cac loop dung
+-- Sec/chu ky giong nhau -> chung THUC DUNG FRAME dinh ky = FPS gao nhip dai mai. Giay do bang 2 lop:
+--   (a) RAMP: trong 10s dau sau load, tic dau cua moi loop moi duon ra 0.08s/loop (cap 4s) -> nen dan khoi dong.
+--   (b) PHASE JITTER vinh duen: moi loop (moi thread) co phase rieng 0..0.15s -> khong bao gio thuc dung frame nua.
+-- task.wait() per-frame (85 cho, giu nguyen) KHONG qua day -> vong keo block van giu per-frame that.
+__DIO_BootT0 = tick()
+__DIO_BootN = 0
+__DIO_ThreadPhase = setmetatable({}, {__mode = "k"}) -- weak key: thread chet thi phase tu giai phong
+__DIO_wait = function(t)
+    t = t or 0.03
+    local __co = coroutine.running()
+    local __ph = 0
+    if __co then
+        __ph = __DIO_ThreadPhase[__co]
+        if __ph == nil then
+            __ph = math.random() * 0.15
+            if tick() - __DIO_BootT0 < 10 then
+                __DIO_BootN = __DIO_BootN + 1
+                __ph = __ph + math.min(__DIO_BootN * 0.08, 4)
+            end
+            __DIO_ThreadPhase[__co] = __ph
+        end
+    end
+    return task.wait(t + __ph)
+end
+spawn = function(f) -- [FIX BOOT-RAMP 2/2] ramp tic dau cua loop; het cua so boot thi spawn nhu thuong (nut bam UI khong bi treo vi di lam sau load)
+    if tick() - __DIO_BootT0 < 10 and __DIO_BootN < 200 then
+        __DIO_BootN = __DIO_BootN + 1
+        return task.delay(math.min(__DIO_BootN * 0.08, 4), f)
+    end
+    return task.spawn(f)
+end
+
 -- ==============================================================
 -- [SAVE SETTING] - GHÉP TỪ FILE BANANA: tự lưu các Setting vừa bật,
 -- sang server khác (hop) script vẫn tự bật lại các chức năng đó.
@@ -336,8 +371,8 @@ end
 local TweenService = game:GetService("TweenService")
 local TweenInfoBring = TweenInfo.new(0.45, Enum.EasingStyle.Linear) -- [FIX PERF 15] 0.3 -> 0.45 (thong so Bear Hub): tween dai hon thi it bi goi lai thi giua chung
 
-_G.BringRange = _G.BringRange or 180
-_G.MaxBringMobs = _G.MaxBringMobs or 4
+_G.BringRange = _G.BringRange or 300
+_G.MaxBringMobs = _G.MaxBringMobs or 6
 
 BringEnemy = function(Mon)
     if not _B then return end
@@ -886,7 +921,7 @@ function WaitForHumanoid()
     while tick() < timeout do
         Humanoid = Character:FindFirstChild("Humanoid")
         if Humanoid then return Humanoid end
-        task.wait(0.1)
+        __DIO_wait(0.1)
     end
     return nil
 end
@@ -1103,7 +1138,7 @@ _tp = function(target)
     pcall(function()
         if CanBypassTeleport(gg) then
             BypassTP(gg, true) -- [FIX PERF 58] caller da kiem, khong kiem lai (tiet kiem 2 quet moi lan)
-            task.wait(0.5)
+            __DIO_wait(0.5)
         end
     end)
     
@@ -1120,11 +1155,11 @@ _tp = function(target)
                 if getdis(cframenpc) < 10 then
                     local net = ReplicatedStorage.Modules.Net
                     net["RF/SubmarineWorkerSpeak"]:InvokeServer("AskKilledTikiBoss")
-                    task.wait(0.5)
+                    __DIO_wait(0.5)
                     net["RF/SubmarineWorkerSpeak"]:InvokeServer("TravelToSubmergedIsland")
                 end
             until getdis(gg.Position) < 2000
-            task.wait(0.6)
+            __DIO_wait(0.6)
             pcall(function()
                 if hrp:FindFirstChild("BodyClip") then
                     hrp.BodyClip:Destroy()
@@ -1179,7 +1214,7 @@ _tp = function(target)
                 tween:Cancel() 
                 break 
             end 
-            task.wait(0.1) 
+            __DIO_wait(0.1) 
         end 
     end)
     
@@ -1230,11 +1265,11 @@ function BTP(p)
             lastPosition = humanoidRootPart.Position
             humanoidRootPart.CFrame = p
         end
-        task.wait(0.5)
+        __DIO_wait(0.5)
     until (p.Position - humanoidRootPart.Position).Magnitude <= 2000
 end
 spawn(function()
-  while task.wait(0.1) do -- [FIX LAG] mỗi frame -> 0.1s
+  while __DIO_wait(0.1) do -- [FIX LAG] mỗi frame -> 0.1s
     pcall(function()
       if _G.SailBoat_Hydra or _G.WardenBoss or _G.AutoFactory or _G.HighestMirage or _G.HCM or _G.PGB or _G.Leviathan1 or _G.UPGDrago or _G.Complete_Trials or _G.TpDrago_Prehis or _G.BuyDrago or _G.AutoFireFlowers or _G.DT_Uzoth or _G.AutoBerry or _G.Prefully or _G.Prehis_Find or _G.Prehis_Skills or _G.Prehis_DB or _G.Prehis_DE or _G.FarmBlazeEM or _G.Dojoo or _G.CollectPresent or _G.AutoLawKak or _G.TpLab or _G.AutoPhoenixF or _G.AutoFarmChest or _G.AutoHytHallow or _G.LongsWord or _G.BlackSpikey or _G.AutoHolyTorch or _G.TrainDrago  or _G.AutoSaber or _G.FarmMastery_Dev or _G.CitizenQuest or _G.AutoEctoplasm or _G.KeysRen or _G.Auto_Rainbow_Haki or _G.obsFarm or _G.AutoBigmom or _G.Doughv2 or _G.AuraBoss or _G.Raiding or _G.Auto_Cavender or _G.TpPly or _G.Bartilo_Quest or _G.Level or _G.FarmEliteHunt or _G.AutoZou or _G.AutoFarm_Bone or getgenv().AutoMaterial or _G.CraftVM or _G.FrozenTP or _G.ShotHL or _G.TPDoor or _G.AcientOne or _G.AutoFarmNear or _G.AutoRaidCastle or _G.DarkBladev3 or _G.AutoFarmRaid or _G.Auto_Cake_Prince or _G.Addealer or _G.TPNpc or _G.TwinHook or _G.FindMirage or _G.FrozenDimension or _G.FarmChestM or _G.Shark or _G.TerrorShark or _G.Piranha or _G.MobCrew or _G.SeaBeast1 or _G.FishBoat or _G.AutoPole or _G.AutoPoleV2 or _G.Auto_SuperHuman or _G.AutoDeathStep or _G.Auto_SharkMan_Karate or _G.Auto_Electric_Claw or _G.AutoDragonTalon or _G.Auto_Def_DarkCoat or _G.Auto_God_Human or _G.Auto_Tushita or _G.AutoMatSoul or _G.AutoKenVTWO or _G.AutoSerpentBow or _G.AutoFMon or _G.Auto_Soul_Guitar or _G.TPGEAR or _G.AutoSaw or _G.AutoTridentW2 or _G.AutoEvoRace or _G.AutoGetQuestBounty or _G.MarinesCoat or _G.TravelDres or _G.Defeating or _G.DummyMan or _G.Auto_Yama or _G.Auto_SwanGG or _G.SwanCoat or _G.AutoEcBoss or _G.Auto_Mink or _G.Auto_Human or _G.Auto_Skypiea or _G.Auto_Fish or _G.CDK_TS or _G.CDK_YM or _G.CDK or _G.AutoFarmGodChalice or _G.AutoFistDarkness or _G.AutoMiror or _G.Teleport or _G.AutoKilo or _G.AutoGetUsoap or _G.Praying or _G.TryLucky or _G.AutoColShad or _G.AutoUnHaki or _G.Auto_DonAcces or _G.AutoRipIngay or _G.DragoV3 or _G.DragoV1 or _G.SailBoats or NextIs or _G.FarmGodChalice or _G.IceBossRen or senth or senth2 or _G.Lvthan or _G.beasthunter or _G.DangerLV or _G.Relic123 or _G.tweenKitsune or _G.Collect_Ember or _G.AutofindKitIs or _G.snaguine or _G.TwFruits or _G.tweenKitShrine or _G.Tp_LgS or _G.Tp_MasterA or _G.tweenShrine or _G.FarmMastery_G or _G.FarmMastery_S or _G.FarmBoss or _G.AutoFarmAllBoss or _G.AutoFishSlap or _G.FarmTyrant or _G.FarmPhaBinh or _G.AutoSpawnCP or _G.AutoBerryH or _G.AutoChestBP or _G.FarmEliteHop or _G.AutoHop_Dough or _G.AutoDoughKing or _G.AutoAttackDoughKing or _G.AutoChipFruit or _G.AutoChipBeli or _G.StartEvent or _G.AutoMysticIsland or _G.AutoPlayerHunter or _G.SafeMode or _G.AutoKillMob or _G.AutoStartPrehistoric or _G.AutoUnHaki or _G.AutoFarmIsland or _G.AutoFarmDungeon or _G.AutoFarmCandy or _G.AutoTP_Gift or _G.AutoTPGift or _G.AutoTPAndCollect or _G.MasterAutoLevel or _G.MasterAutoCandy or _G.TPFloor1 or _G.TPFloor2 or _G.TPFloor3 or _G.TPFloor4 or _G.FarmEliteH or _G.Safemode or _G.Greybeard or _G.ResetPH then -- [FIX FLYBUSY-FLAG] 4 toggle co loop rieng nhung khong nam trong cond list -> stomper stomp shouldTween moi 0.1s -> khong bao gio bay (cung benh BuyMelee cu)          
        shouldTween = true
@@ -1811,7 +1846,7 @@ local KitsuneCheck = Tabs.Status:AddParagraph("Kitsune Island", "Status: ")
 
 local previousKitsuneStatus = ""
 spawn(function()
-    while task.wait(1) do
+    while __DIO_wait(1) do
         local currentStatus = game:GetService("Workspace").Map:FindFirstChild("KitsuneIsland") and '✅' or '❌'
         if currentStatus ~= previousKitsuneStatus then
             KitsuneCheck:SetDesc('Status: ' .. currentStatus)
@@ -1824,7 +1859,7 @@ local PrehistoricCheck = Tabs.Status:AddParagraph("Prehistoric Island", "Status:
 
 local previousPrehistoricStatus = ""
 task.spawn(function()
-    while task.wait(1) do
+    while __DIO_wait(1) do
         local currentStatus = game.Workspace._WorldOrigin.Locations:FindFirstChild("Prehistoric Island") and '✅' or '❌'
         if currentStatus ~= previousPrehistoricStatus then
             PrehistoricCheck:SetDesc("Status: " .. currentStatus)
@@ -1837,7 +1872,7 @@ local FrozenCheck = Tabs.Status:AddParagraph("Frozen Dimension", "Status: ")
 
 local previousFrozenStatus = ""
 spawn(function()
-    while task.wait(1) do
+    while __DIO_wait(1) do
         local currentStatus = game.Workspace._WorldOrigin.Locations:FindFirstChild('Frozen Dimension') and '✅' or '❌'
         if currentStatus ~= previousFrozenStatus then
             FrozenCheck:SetDesc('Status: ' .. currentStatus)
@@ -1849,7 +1884,7 @@ end)
 local CakePrinceStatus = Tabs.Status:AddParagraph("Cake Prince", "")
 
 spawn(function()
-    while task.wait(1) do
+    while __DIO_wait(1) do
         local cakePrince = game:GetService("ReplicatedStorage").Remotes.CommF_:InvokeServer("CakePrinceSpawner")
         local killStatus = "Cake Prince: ✅"
         if string.len(cakePrince) >= 86 then
@@ -1864,7 +1899,7 @@ local RipIndraCheck = Tabs.Status:AddParagraph("Rip Indra", "Status: ")
 
 local previousRipStatus = ""
 spawn(function()
-    while task.wait(1) do
+    while __DIO_wait(1) do
         local currentStatus = (game:GetService("ReplicatedStorage"):FindFirstChild("rip_indra True Form") or 
                                game:GetService("Workspace").Enemies:FindFirstChild("rip_indra")) and '✅' or '❌'
         if currentStatus ~= previousRipStatus then
@@ -1878,7 +1913,7 @@ local DoughKingCheck = Tabs.Status:AddParagraph("Dough King", "Status: ")
 
 local previousDoughStatus = ""
 spawn(function()
-    while task.wait(1) do
+    while __DIO_wait(1) do
         local currentStatus = (game:GetService("ReplicatedStorage"):FindFirstChild("Dough King") or 
                                game:GetService("Workspace").Enemies:FindFirstChild("Dough King")) and '✅' or '❌'
         if currentStatus ~= previousDoughStatus then
@@ -1891,7 +1926,7 @@ end)
 local FullMoonCheck = Tabs.Status:AddParagraph("Full Moon", "")
 
 task.spawn(function()
-    while task.wait(1) do
+    while __DIO_wait(1) do
         local moonTextureId = game:GetService("Lighting").Sky.MoonTextureId
         local moonStatus = "Moon: 0/5"
         
@@ -1915,7 +1950,7 @@ local LegendarySwordCheck = Tabs.Status:AddParagraph("Legendary Sword", "Status:
 
 spawn(function()
     local __prevSword = nil
-    while task.wait(5) do -- [FIX PERF 64] 1s x 3 remote -> 5s + break som (tim thay thi khong goi con lai): 3/s -> 0.2/s
+    while __DIO_wait(5) do -- [FIX PERF 64] 1s x 3 remote -> 5s + break som (tim thay thi khong goi con lai): 3/s -> 0.2/s
         local swordStatus = "Not Found"
         local d1 = game:GetService("ReplicatedStorage").Remotes.CommF_:InvokeServer("LegendarySwordDealer", "1")
         if d1 then
@@ -1938,7 +1973,7 @@ end)
 local BoneCount = Tabs.Status:AddParagraph("Bone", "")
 
 spawn(function()
-    while task.wait(1) do
+    while __DIO_wait(1) do
         local bones = game:GetService("ReplicatedStorage").Remotes.CommF_:InvokeServer("Bones", "Check")
         BoneCount:SetDesc("You Have: " .. tostring(bones) .. " Bones")
     end
@@ -1954,7 +1989,7 @@ end})
 
 
 spawn(function()
-    while task.wait(1) do -- [FIX PERF 62] 0.5 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+    while __DIO_wait(1) do -- [FIX PERF 62] 0.5 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
         pcall(function()
             if _G.ChooseWP == "Melee" then
                 for _,v in pairs(plr.Backpack:GetChildren()) do
@@ -2024,7 +2059,7 @@ local function IsInSubmergedIsland()
 end
 
 task.spawn(function()
-    while task.wait(Sec) do
+    while __DIO_wait(Sec) do
         if _G.Level then
             pcall(function()
                 local char = plr.Character or plr.CharacterAdded:Wait()
@@ -2043,7 +2078,7 @@ task.spawn(function()
                     local teleportAttempts = 0
                     
                     repeat 
-                        task.wait(Sec)
+                        __DIO_wait(Sec)
                         _tp(npcPos)
                         teleportAttempts = teleportAttempts + 1
                     until not _G.Level or (Root.Position - npcPos.Position).Magnitude <= 8 or teleportAttempts > 20
@@ -2053,7 +2088,7 @@ task.spawn(function()
                         return 
                     end
 
-                    task.wait(1)
+                    __DIO_wait(1)
                     
                     pcall(function()
                         local args = {"TravelToSubmergedIsland"} 
@@ -2062,7 +2097,7 @@ task.spawn(function()
 
                     local timeout = tick()
                     repeat 
-                        task.wait(0.5)
+                        __DIO_wait(0.5)
                         local currentInSub = IsInSubmergedIsland()
                         local farFromNPC = (Root.Position - npcPos.Position).Magnitude > 50
                         
@@ -2071,7 +2106,7 @@ task.spawn(function()
                         end
                     until not _G.Level or tick() - timeout > 15
 
-                    task.wait(2)
+                    __DIO_wait(2)
                     alreadyTeleported = true
                     teleporting = false
                     
@@ -2082,13 +2117,13 @@ task.spawn(function()
                     local questData = QuestNeta()
                     
                     if not questData or not questData[1] then
-                        task.wait(1)
+                        __DIO_wait(1)
                         return
                     end
                     
                     if questUI.Visible and not string.find(QuestTitle, questData[1]) then
                         replicated.Remotes.CommF_:InvokeServer("AbandonQuest")
-                        task.wait(0.2)
+                        __DIO_wait(0.2)
                         return
                     end
 
@@ -2096,19 +2131,19 @@ task.spawn(function()
                         local questPos = questData[6]
                         if questPos then
                             _tp(questPos)
-                            task.wait(2)
+                            __DIO_wait(2)
                             
                             if (Root.Position - questPos.Position).Magnitude <= 10 then
                                 pcall(function()
                                     replicated.Remotes.CommF_:InvokeServer("StartQuest", questData[3], questData[2])
                                 end)
-                                task.wait(1)
+                                __DIO_wait(1)
                             end
                         else
                             pcall(function()
                                 replicated.Remotes.CommF_:InvokeServer("StartQuest", questData[3], questData[2])
                             end)
-                            task.wait(1)
+                            __DIO_wait(1)
                         end
                         return
                     end
@@ -2120,7 +2155,7 @@ task.spawn(function()
                         if v.Name == enemyName and Attack.Alive(v) then
                             foundMob = true
                             repeat
-                                task.wait(Sec)
+                                __DIO_wait(Sec)
                                 _tp(v.HumanoidRootPart.CFrame * CFrame.new(0,20,0))
                                 Attack.Kill(v, _G.Level)
                                 
@@ -2128,7 +2163,7 @@ task.spawn(function()
                                     break
                                 end
                             until not _G.Level or not v.Parent or v.Humanoid.Health <= 0
-                            task.wait(2) 
+                            __DIO_wait(2) 
                         end
                     end
                     
@@ -2167,7 +2202,7 @@ Callback = function(Value)
   _G.AutoFarmNear = Value
 end})
 spawn(function()
-  while task.wait(1) do -- [FIX PERF 62] 0.1 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+  while __DIO_wait(1) do -- [FIX PERF 62] 0.1 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
     pcall(function()
       if _G.AutoFarmNear then
         for i,v in pairs(workspace.Enemies:GetChildren()) do
@@ -2189,7 +2224,7 @@ Callback = function(Value)
   _G.AutoFactory = Value
 end})
 spawn(function()
-  while task.wait(1) do -- [FIX PERF 62] 0.3 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+  while __DIO_wait(1) do -- [FIX PERF 62] 0.3 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
     pcall(function()
       if _G.AutoFactory then
         local v = GetConnectionEnemies("Core")
@@ -2214,7 +2249,7 @@ Callback = function(Value)
   _G.AutoRaidCastle = Value
 end})
 spawn(function()
-  while task.wait(1) do -- [FIX PERF 62] 0.1 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+  while __DIO_wait(1) do -- [FIX PERF 62] 0.1 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
     if _G.AutoRaidCastle then
       pcall(function()
       local CFrameCastleRaid = CFrame.new(-5496.17432, 313.768921, -2841.53027, 0.924894512, 7.37058015e-09, 0.380223751, 3.5881019e-08, 1, -1.06665446e-07, -0.380223751, 1.12297109e-07, 0.924894512)
@@ -2251,7 +2286,7 @@ Callback = function(Value)
   _G.AutoEctoplasm = Value
 end})
 spawn(function()
-  while task.wait(1) do -- [FIX PERF 62] 0.1 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+  while __DIO_wait(1) do -- [FIX PERF 62] 0.1 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
     pcall(function()
       if _G.AutoEctoplasm then
         local EctoTable = {"Ship Deckhand","Ship Engineer","Ship Steward","Ship Officer","Arctic Warrior"}    
@@ -2276,7 +2311,7 @@ Callback = function(Value)
   _G.AutoFarmChest = Value
 end})
 spawn(function()
-  while task.wait(Sec) do
+  while __DIO_wait(Sec) do
     if _G.AutoFarmChest then
       pcall(function()
         local CollectionService = game:GetService("CollectionService")
@@ -2359,7 +2394,7 @@ ChestBP = Tabs.Main:AddToggle({
                             local RootPart = getCharacter().HumanoidRootPart
                             RootPart.CFrame = Chests[1].CFrame
                         end
-                        task.wait(0.3) -- [FIX PERF 47] 0.1 -> 0.3: set thuang RootPart.CFrame 10 lan/s thanh ~3 lan/s du de bat chest
+                        __DIO_wait(0.3) -- [FIX PERF 47] 0.1 -> 0.3: set thuang RootPart.CFrame 10 lan/s thanh ~3 lan/s du de bat chest
                     end
                     IsFarming = false
                 end)
@@ -2367,7 +2402,7 @@ ChestBP = Tabs.Main:AddToggle({
 
             LocalPlayer.CharacterAdded:Connect(function()
                 getCharacter()
-                task.wait(0.5)
+                __DIO_wait(0.5)
                 if _G.AutoChestBP then
                     runChestLoop()
                 end
@@ -2387,7 +2422,7 @@ Callback = function(Value)
 end})
 
 spawn(function()
-    while task.wait(1) do -- [FIX PERF 62] 0.5 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+    while __DIO_wait(1) do -- [FIX PERF 62] 0.5 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
         if _G.StopWhenChalice and (_G.AutoFarmChest or _G.AutoChestBP) then
             pcall(function()
                 if GetBP("God's Chalice") or GetBP("Sweet Chalice") or GetBP("Fist of Darkness") then
@@ -2409,7 +2444,7 @@ Callback = function(Value)
   _G.AutoBerry = Value
 end})
 spawn(function()
-  while task.wait(Sec) do
+  while __DIO_wait(Sec) do
     if _G.AutoBerry then
       local CollectionService= game:GetService("CollectionService")
       local Players= game:GetService("Players")
@@ -2446,7 +2481,7 @@ Callback = function(Value)
 end})
 
 spawn(function()
-    while task.wait(Sec) do
+    while __DIO_wait(Sec) do
         if _G.AutoBerryH then
             local CollectionService = game:GetService("CollectionService")
             local Players = game:GetService("Players")
@@ -2560,7 +2595,7 @@ Tabs.Main:AddToggle({
     end
 })
 spawn(function()
-    while task.wait(1) do -- [FIX PERF 62] 0.1 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+    while __DIO_wait(1) do -- [FIX PERF 62] 0.1 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
         if _G.AutoKillMob then
             pcall(function()
                 if game:GetService("Workspace").Enemies:FindFirstChild(getgenv().SelectMob) then
@@ -2871,7 +2906,7 @@ Tabs.Main:AddToggle({
 
 
 task.spawn(function()
-    while task.wait(1) do -- [FIX PERF 62] 0.35 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+    while __DIO_wait(1) do -- [FIX PERF 62] 0.35 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
         if not _G.AutoFarmIsland then continue end
         if not _G.SelectIsland then continue end
         if not IslandData then continue end
@@ -2917,7 +2952,7 @@ Tabs.Main:AddSection("Farm Elite Hunter")
 local Process = Tabs.Main:AddParagraph("Elites Process", "")
 spawn(function()
     local __prevElite = nil -- [FIX PERF 31] SetDesc chi khi gia tri DOI (ui khong ve lai voi cung chuoi)
-    while task.wait(2) do -- [FIX FPS 2] 0.1s -> 2s: cu goi remote EliteHunter 10 lan/s ca khi treo
+    while __DIO_wait(2) do -- [FIX FPS 2] 0.1s -> 2s: cu goi remote EliteHunter 10 lan/s ca khi treo
         pcall(function()    
             local __v = "Elite Progress : " .. replicated.Remotes.CommF_:InvokeServer("EliteHunter", "Progress")
             if __v ~= __prevElite then __prevElite = __v Process:SetDesc(__v) end
@@ -2928,7 +2963,7 @@ end)
 local EliteHunter = Tabs.Main:AddParagraph("Elite Spawn", "Status: ")
 spawn(function()
     local previousStatus = ""
-    while task.wait(1) do
+    while __DIO_wait(1) do
         local currentStatus = (game:GetService("ReplicatedStorage"):FindFirstChild("Diablo") or 
                                game:GetService("ReplicatedStorage"):FindFirstChild("Deandre") or 
                                game:GetService("ReplicatedStorage"):FindFirstChild("Urban") or 
@@ -2952,7 +2987,7 @@ EliteQ = Tabs.Main:AddToggle({
 end})
 
 spawn(function()
-    while task.wait(1) do
+    while __DIO_wait(1) do
         pcall(function()
             if _G.FarmEliteHunt then
                 local questGui = plr.PlayerGui.Main.Quest
@@ -2966,7 +3001,7 @@ spawn(function()
                         wait(10)
                         return
                     end
-                    task.wait(1)
+                    __DIO_wait(1)
                 else
                     
                     local eliteName = nil
@@ -3053,7 +3088,7 @@ end
 
 
 spawn(function()
-	while task.wait(1) do
+	while __DIO_wait(1) do
 		pcall(function()
 			if _G.FarmEliteH then
 				local questGui = plr.PlayerGui.Main.Quest
@@ -3067,7 +3102,7 @@ spawn(function()
 						HopServer()
 						return
 					end
-					task.wait(1)
+					__DIO_wait(1)
 
 				else
 				
@@ -3102,13 +3137,13 @@ spawn(function()
 							until not _G.FarmEliteH or not boss.Parent or boss.Humanoid.Health <= 0 or not questGui.Visible
 						else
 						
-							task.wait(5)
+							__DIO_wait(5)
 							HopServer()
 						end
 					else
 					
 						replicated.Remotes.CommF_:InvokeServer("AbandonQuest")
-						task.wait(1)
+						__DIO_wait(1)
 						HopServer()
 					end
 				end
@@ -3127,7 +3162,7 @@ Callback = function(Value)
   _G.AutoRipIngay = Value
 end})
 spawn(function()
-  while task.wait(Sec) do
+  while __DIO_wait(Sec) do
     pcall(function()
       if _G.AutoRipIngay then
         -- [FIX RIP INDRA] TIM CA 2 TEN: "rip_indra" (boss Second Sea - Indra Island) va
@@ -3140,10 +3175,10 @@ spawn(function()
         -- ve Castle cho spawn -> toggle dung yen. Gio: CO boss + thieu 1 trong 2 do drop
         -- (Dark Dagger hoac Valkyrie) -> danh; KHONG co boss (hoac du do) -> ve Castle cho spawn.
         if v and (not GetWP("Dark Dagger") or not GetIn("Valkyrie")) then
-          repeat task.wait(Sec) Attack.Kill(v,_G.AutoRipIngay)until not _G.AutoRipIngay or not v.Parent or v.Humanoid.Health <= 0
+          repeat __DIO_wait(Sec) Attack.Kill(v,_G.AutoRipIngay)until not _G.AutoRipIngay or not v.Parent or v.Humanoid.Health <= 0
         else
           replicated.Remotes.CommF_:InvokeServer("requestEntrance",Vector3.new(-5097.93164, 316.447021, -3142.66602, -0.405007899, -4.31682743e-08, 0.914313197, -1.90943332e-08, 1, 3.8755779e-08, -0.914313197, -1.76180437e-09, -0.405007899))
-		  task.wait(.1)
+		  __DIO_wait(.1)
 		  _tp(CFrame.new(-5344.822265625, 423.98541259766, -2725.0930175781))
 	    end
       end
@@ -3170,7 +3205,7 @@ HakiCalculate = function(Part)
   if Part and Part.BrickColor then return (ID[tostring(Part.BrickColor)])end;
 end;
 spawn(function()
-  while task.wait(Sec) do
+  while __DIO_wait(Sec) do
     if _G.AutoUnHaki then
       pcall(function()
         local Summoner = workspace.Map["Boat Castle"]:FindFirstChild("Summoner");
@@ -3194,7 +3229,7 @@ Tabs.Main:AddSection("Farming Cake")
 local MobKilled = Tabs.Main:AddParagraph("Cake Princes", "")
 spawn(function()
     local __prevCake = nil -- [FIX PERF 31] SetDesc chi khi gia tri DOI (ui khong ve lai voi cung chuoi)
-    while task.wait(2) do -- [FIX FPS 2] 0.2s -> 2s: remote CakePrinceSpawner 5 lan/s -> 0.5 lan/s
+    while __DIO_wait(2) do -- [FIX FPS 2] 0.2s -> 2s: remote CakePrinceSpawner 5 lan/s -> 0.5 lan/s
         pcall(function()
             local Killed = string.match(replicated.Remotes.CommF_:InvokeServer("CakePrinceSpawner"), "%d+")
             if Killed then
@@ -3227,7 +3262,7 @@ end
 })
 
 spawn(function()
-    while task.wait(1) do -- [FIX PERF 62] 0.1 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+    while __DIO_wait(1) do -- [FIX PERF 62] 0.1 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
         if _G.Auto_Cake_Prince then
             pcall(function()
                 local plr = game.Players.LocalPlayer
@@ -3315,7 +3350,7 @@ CakeSM = Tabs.Main:AddToggle({
 end})
 
 spawn(function()
-    while task.wait(2) do
+    while __DIO_wait(2) do
         if _G.AutoSpawnCP then
             pcall(function()
                 local CommF = game.ReplicatedStorage.Remotes.CommF_
@@ -3341,7 +3376,7 @@ Tabs.Main:AddToggle({
 })
 
 spawn(function()
-    while task.wait(1) do -- [FIX PERF 62] 0.1 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+    while __DIO_wait(1) do -- [FIX PERF 62] 0.1 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
         if _G.AutoDoughKing then
             pcall(function()
                 if not workspace.Map.CakeLoaf:FindFirstChild("RedDoor") then
@@ -3407,7 +3442,7 @@ Tabs.Main:AddToggle({
     end
 })
 spawn(function()
-    while task.wait(1) do -- [FIX PERF 62] 0.1 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+    while __DIO_wait(1) do -- [FIX PERF 62] 0.1 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
         if _G.AutoAttackDoughKing then
             pcall(function()
                 local v = GetConnectionEnemies("Dough King")
@@ -3454,7 +3489,7 @@ end
 
 
 spawn(function()
-    while task.wait(1) do -- [FIX PERF 62] 0.1 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+    while __DIO_wait(1) do -- [FIX PERF 62] 0.1 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
         if _G.AutoHop_Dough then
             pcall(function()
                 local v = GetConnectionEnemies("Dough King")
@@ -3470,7 +3505,7 @@ spawn(function()
                   
                     _tp(CFrame.new(-1943.6765, 251.5095, -12337.8809))
 
-                    task.wait(2)
+                    __DIO_wait(2)
 
                     
                     local checkAgain = GetConnectionEnemies("Dough King")
@@ -3489,7 +3524,7 @@ Tabs.Main:AddSection("Farming Bone")
 local CheckingBone = Tabs.Main:AddParagraph("Bones", "")
 spawn(function()
     local __prevBone = nil -- [FIX PERF 31] SetDesc chi khi gia tri DOI (ui khong ve lai voi cung chuoi)
-    while task.wait(1) do -- [FIX FPS 2] 0.2s -> 1s (GetM da co cache 2s nen khong con spam remote)
+    while __DIO_wait(1) do -- [FIX FPS 2] 0.2s -> 1s (GetM da co cache 2s nen khong con spam remote)
         pcall(function()
             local __v = "Bones : " .. GetM("Bones")
             if __v ~= __prevBone then __prevBone = __v CheckingBone:SetDesc(__v) end
@@ -3510,7 +3545,7 @@ Tabs.Main:AddToggle({
 })
 
 spawn(function()
-    while task.wait(1) do -- [FIX PERF 62] 0.1 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+    while __DIO_wait(1) do -- [FIX PERF 62] 0.1 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
         if _G.AutoFarm_Bone then 
             pcall(function()
                 local plr = game.Players.LocalPlayer  
@@ -3537,7 +3572,7 @@ spawn(function()
                     if distToNPC > 5 then
                         _tp(npcPos) -- Teleporta direto para o NPC
                     else
-                        task.wait(0.5)
+                        __DIO_wait(0.5)
                         local quests = {
                             {"StartQuest","HauntedQuest1",1}, 
                             {"StartQuest","HauntedQuest1",2},
@@ -3545,7 +3580,7 @@ spawn(function()
                             {"StartQuest","HauntedQuest2",2}
                         }
                         game:GetService("ReplicatedStorage").Remotes.CommF_:InvokeServer(unpack(quests[math.random(1,#quests)]))
-                        task.wait(1) 
+                        __DIO_wait(1) 
                     end
 
                 -- [PASSO 2] SE JÁ TEM QUEST OU NÃO QUER ACEITAR, VAI FARMAL
@@ -3606,7 +3641,7 @@ Callback = function(Value)
   _G.AutoHytHallow = Value
 end})
 spawn(function()
-  while task.wait(Sec) do
+  while __DIO_wait(Sec) do
     if _G.AutoHytHallow then
       pcall(function()
         local v = GetConnectionEnemies("Soul Reaper")
@@ -3614,7 +3649,7 @@ spawn(function()
           repeat task.wait() Attack.Kill(v,_G.AutoHytHallow) until v.Humanoid.Health <= 0 or _G.AutoHytHallow == false
         else
           if not GetBP("Hallow Essence") then
-            repeat task.wait(.1)replicated.Remotes.CommF_:InvokeServer("Bones","Buy",1,1)until _G.AutoHytHallow == false or GetBP("Hallow Essence")
+            repeat __DIO_wait(.1)replicated.Remotes.CommF_:InvokeServer("Bones","Buy",1,1)until _G.AutoHytHallow == false or GetBP("Hallow Essence")
           else
             repeat wait(.1) _tp(CFrame.new(-8932.322265625, 146.83154296875, 6062.55078125))until _G.AutoHytHallow == false or ((plr.Character.HumanoidRootPart.Position - CFrame.new(-8932.322265625, 146.83154296875, 6062.55078125).Position).Magnitude <= 5) -- [FIX PERF 23] CFrame== hang so float khong bao gio khop -> treo repeat; doi thanh khoang cach
 		    EquipWeapon("Hallow Essence")
@@ -3632,7 +3667,7 @@ Callback = function(Value)
   _G.Auto_Random_Bone = Value
 end})
 spawn(function()
-  while task.wait(Sec) do
+  while __DIO_wait(Sec) do
     pcall(function()
       if _G.Auto_Random_Bone then    
   	    repeat task.wait() replicated.Remotes.CommF_:InvokeServer("Bones","Buy",1,1) until not _G.Auto_Random_Bone
@@ -3648,7 +3683,7 @@ Callback = function(Value)
   _G.TryLucky = Value
 end})
 spawn(function()
-  while task.wait(Sec) do
+  while __DIO_wait(Sec) do
     if _G.TryLucky then
     -- [FIX FPS 5] pcall + nil-guard (chet/respawn = thread chet vien vien) + do khoang cach
     -- thay cho so sanh CFrame "==" (12 so phai khop tuyet doi -> nhanh invoke co the khong bao gio chay)
@@ -3673,7 +3708,7 @@ Callback = function(Value)
   _G.Praying = Value
 end})
 spawn(function()
-  while task.wait(Sec) do
+  while __DIO_wait(Sec) do
     if _G.Praying then
     -- [FIX FPS 5] nhu Try Luck: pcall + nil-guard + khoang cach thay "=="
     pcall(function()
@@ -3696,7 +3731,7 @@ Tabs.Main:AddSection("Tyrant of the Skies")
 local TyrantStatus = Tabs.Main:AddParagraph("Boss Spawn", "")
 spawn(function()
     pcall(function()
-        while task.wait(1) do
+        while __DIO_wait(1) do
             if workspace.Enemies:FindFirstChild("Tyrant of the Skies") then
                 TyrantStatus:SetDesc("✅")
             else
@@ -3729,7 +3764,7 @@ end
 
 task.spawn(function()
     local alerted = false
-    while task.wait(1) do
+    while __DIO_wait(1) do
         local current, full = Check_Eye()
         EyeStatus:SetDesc("Eyes: " .. current .. "/4")
 
@@ -3750,7 +3785,7 @@ Callback = function(Value)
 end})
 
 spawn(function()
-    while task.wait(Sec) do
+    while __DIO_wait(Sec) do
         if _G.FarmTyrant then
             pcall(function()
                 if not plr.Character then return end
@@ -3849,7 +3884,7 @@ local PhaBinhPoints = {
 }
 
 spawn(function()
-    while task.wait(Sec) do
+    while __DIO_wait(Sec) do
         if _G.FarmPhaBinh then
             pcall(function()
                 if not (plr and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") and plr.Character:FindFirstChild("Humanoid") and plr.Character.Humanoid.Health > 0) then return end
@@ -3918,7 +3953,7 @@ spawn(function()
       end
     end
   end
-  while task.wait(1) do -- [FIX PERF 62] 0.1 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+  while __DIO_wait(1) do -- [FIX PERF 62] 0.1 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
     if getgenv().AutoMaterial then
       pcall(function()
         if getgenv().SelectMaterial then MaterialMon(getgenv().SelectMaterial) _tp(MPos) end
@@ -3950,7 +3985,7 @@ FarmBoss = Tabs.Main:AddToggle({
     Callback = function(value)
         _G.FarmBoss = value
         spawn(function()
-            while task.wait(Sec) do
+            while __DIO_wait(Sec) do
                 if _G.FarmBoss then
                     pcall(function()
                         local HasQuest = QuestBeta()[2] ~= nil and QuestBeta()[3] ~= nil
@@ -4031,7 +4066,7 @@ Callback = function(Value)
 end})
 
 task.spawn(function()
-    while task.wait(1) do -- [FIX PERF 62] 0.3 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+    while __DIO_wait(1) do -- [FIX PERF 62] 0.3 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
         if _G.AutoFarmAllBoss then
             pcall(function()
                 local player = game.Players.LocalPlayer
@@ -4057,7 +4092,7 @@ task.spawn(function()
                     local humanoid = nearestBoss.Humanoid
 
                     repeat
-                        task.wait(0.1)
+                        __DIO_wait(0.1)
                         if not _G.AutoFarmAllBoss then break end
 
                         local targetCFrame = bossHRP.CFrame * CFrame.new(0, 5, 0)
@@ -4102,7 +4137,7 @@ local __NextNotifScan = 0
 RunService.RenderStepped:Connect(function() pcall(function()if _G.FarmMastery_Dev or _G.FarmMastery_G or _G.FarmMastery_S then if tick() < __NextNotifScan then return end __NextNotifScan = tick() + 0.2 for a,b in pairs(plr.PlayerGui.Notifications:GetChildren())do if b.Name=="NotificationTemplate"then if string.find(b.Text,"Skill locked!")then b:Destroy()end end end end end)end)
 end)
 spawn(function()
-  while task.wait(Sec) do
+  while __DIO_wait(Sec) do
     if _G.FarmMastery_Dev then
       pcall(function()
         if SelectIsland == "Cake" then         
@@ -4140,7 +4175,7 @@ Callback = function(Value)
   _G.FarmMastery_G = Value
 end})
 spawn(function()
-  while task.wait(Sec) do
+  while __DIO_wait(Sec) do
     if _G.FarmMastery_G then
       pcall(function()
         if SelectIsland == "Cake" then
@@ -4218,7 +4253,7 @@ Callback = function(Value)
   _G.FarmMastery_S = Value
 end})
 spawn(function()
-  while task.wait(Sec) do
+  while __DIO_wait(Sec) do
     pcall(function()
       if _G.FarmMastery_S then
         if SelectIsland == "Cake" then
@@ -4326,7 +4361,7 @@ Tabs.Settings:AddToggle({
 })
 
 Spawn(function()
-    while task.wait(1) do
+    while __DIO_wait(1) do
         if _G.AutoHopServer then
             pcall(function()
                 if not _G.HopTimer then
@@ -4379,7 +4414,7 @@ Callback = function(Value)
   Boud = Value
 end})
 spawn(function()
-  while task.wait(Sec) do
+  while __DIO_wait(Sec) do
     pcall(function()
       if Boud then
       local _HasBuso = {"HasBuso","Buso"}
@@ -4396,7 +4431,7 @@ Tabs.Settings:AddToggle({
     end
 })
 spawn(function()
-    while task.wait(1) do -- [FIX PERF 62] 0.1 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+    while __DIO_wait(1) do -- [FIX PERF 62] 0.1 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
         if getgenv().Observation then
             pcall(function()
                 game:GetService("ReplicatedStorage").Remotes.CommE:FireServer("Ken", true)
@@ -4413,7 +4448,7 @@ Callback = function(Value)
   _G.RaceClickAutov3 = Value
 end})
 spawn(function()
-  while task.wait(1) do -- [FIX PERF 62] .2 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+  while __DIO_wait(1) do -- [FIX PERF 62] .2 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
     pcall(function()
       if _G.RaceClickAutov3 then
         repeat
@@ -4432,7 +4467,7 @@ Callback = function(Value)
   _G.RaceClickAutov4 = Value
 end})
 spawn(function()
-  while task.wait(1) do -- [FIX PERF 62] 0.5 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+  while __DIO_wait(1) do -- [FIX PERF 62] 0.5 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
     pcall(function()
       if _G.RaceClickAutov4 then
   	    if plr.Character:FindFirstChild("RaceEnergy") then
@@ -4458,7 +4493,7 @@ Callback = function(Value)
   _G.Safemode = Value
 end})
 spawn(function()
-  while task.wait(Sec) do
+  while __DIO_wait(Sec) do
     pcall(function()
 	  if _G.Safemode then
   	  local Calc_Health = plr.Character.Humanoid.Health / plr.Character.Humanoid.MaxHealth * 100
@@ -4480,7 +4515,7 @@ DisableHitVFX = Tabs.Settings:AddToggle({
 local HitEffects = {"SlashHit", "CurvedRing", "SwordSlash", "SlashTail"}
 
 task.spawn(function()
-    while task.wait(Sec) do
+    while __DIO_wait(Sec) do
         if _G.DestroyHit then
             pcall(function()
                 for _, v in pairs(workspace["_WorldOrigin"]:GetChildren()) do
@@ -4500,7 +4535,7 @@ Callback = function(Value)
   RDeath = Value
 end})
 spawn(function()
-  while task.wait(Sec) do
+  while __DIO_wait(Sec) do
     pcall(function()
       if RDeath then
 	  if replicated.Effect.Container:FindFirstChild("Death") then replicated.Effect.Container.Death:Destroy() end
@@ -4517,7 +4552,7 @@ Callback = function(Value)
   RemoveDamage = Value
 end})
 spawn(function()
-  while task.wait(Sec) do
+  while __DIO_wait(Sec) do
     pcall(function()
       if RemoveDamage then
         replicated.Assets.GUI.DamageCounter.Enabled = false
@@ -4555,7 +4590,7 @@ Tabs.Settings:AddToggle({
     end
 })
 spawn(function()
-    while task.wait(1) do -- [FIX PERF 62] 0.1 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+    while __DIO_wait(1) do -- [FIX PERF 62] 0.1 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
         pcall(function()
             if getgenv().HopServerAdmin then
                 for _, v in pairs(game.Players:GetPlayers()) do
@@ -4616,7 +4651,7 @@ Callback = function(Value)
   _G.Auto_Melee = Value
 end})
 spawn(function()
-  while task.wait(Sec) do
+  while __DIO_wait(Sec) do
     pcall(function()
     if _G.Auto_Melee then statsSetings("Melee",pSats) end
     end)
@@ -4631,7 +4666,7 @@ Callback = function(Value)
   _G.Auto_Sword = Value
 end})
 spawn(function()
-  while task.wait(Sec) do
+  while __DIO_wait(Sec) do
     pcall(function()
     if _G.Auto_Sword then statsSetings("Sword",pSats) end
     end)
@@ -4645,7 +4680,7 @@ Callback = function(Value)
   _G.Auto_Gun = Value
 end})
 spawn(function()
-  while task.wait(Sec) do
+  while __DIO_wait(Sec) do
     pcall(function()
     if _G.Auto_Gun then statsSetings("Gun",pSats) end
     end)
@@ -4659,7 +4694,7 @@ Callback = function(Value)
   _G.Auto_DevilFruit = Value
 end})
 spawn(function()
-  while task.wait(Sec) do
+  while __DIO_wait(Sec) do
     pcall(function()
     if _G.Auto_DevilFruit then statsSetings("Devil",pSats) end
     end)
@@ -4673,7 +4708,7 @@ Callback = function(Value)
   _G.Auto_Defense = Value
 end})
 spawn(function()
-  while task.wait(Sec) do
+  while __DIO_wait(Sec) do
     pcall(function()
     if _G.Auto_Defense then statsSetings("Defense",pSats) end
     end)
@@ -4723,7 +4758,7 @@ BuyBaitToggle = Tabs.Fish:AddToggle({
 
 
 task.spawn(function()
-    while task.wait(2) do
+    while __DIO_wait(2) do
         if _G.AutoBuyBait and _G.SelectedBait then
             pcall(function()
                 Remotes.RFCraft:InvokeServer("Craft", _G.SelectedBait, {})
@@ -4755,7 +4790,7 @@ local GetWaterHeight = require(ReplicatedStorage.Util.GetWaterHeightAtLocation)
 local MaxDistance = Config.Rod.MaxLaunchDistance
 
 task.spawn(function()
-    while task.wait(1) do -- [FIX PERF 62] 0.5 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+    while __DIO_wait(1) do -- [FIX PERF 62] 0.5 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
         if _G.AutoFishing then
             pcall(function()
                 local Char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
@@ -4789,7 +4824,7 @@ task.spawn(function()
                         FishingRequest:InvokeServer("CastLineAtLocation", TargetPos, 100, true)
                     elseif ServerState == "Biting" then
                         FishingRequest:InvokeServer("Catching", true)
-                        task.wait(0.1)
+                        __DIO_wait(0.1)
                         FishingRequest:InvokeServer("Catch", 1)
                     end
                 end
@@ -4822,7 +4857,7 @@ local function HasQuest3()
 end
 
 task.spawn(function()
-    while task.wait(1) do
+    while __DIO_wait(1) do
         if _G.AutoFishingQuest then
             pcall(function()
                 if not HasQuest3() then
@@ -4851,7 +4886,7 @@ QuestToggle = Tabs.Fish:AddToggle({
 
 
 task.spawn(function()
-    while task.wait(5) do 
+    while __DIO_wait(5) do 
         if _G.AutoQuestComplete then
             pcall(function()
                 Remotes.RFJobsRemoteFunction:InvokeServer("FishingNPC", "FinishQuest")
@@ -4878,7 +4913,7 @@ SellFishToggle = Tabs.Fish:AddToggle({
 
 
 task.spawn(function()
-    while task.wait(5) do 
+    while __DIO_wait(5) do 
         if _G.AutoSellFish then
             pcall(function()
                 Remotes.RFJobsRemoteFunction:InvokeServer("FishingNPC", "SellFish")
@@ -4901,7 +4936,7 @@ local ReplicatedStorage4 = game:GetService("ReplicatedStorage")
 local RFJobToolAbilities4 = ReplicatedStorage4.Modules.Net:WaitForChild("RF/JobToolAbilities")
 
 task.spawn(function()
-    while task.wait(1) do -- [FIX PERF 62] 0.5 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+    while __DIO_wait(1) do -- [FIX PERF 62] 0.5 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
         if _G.AutoSkillZ then
             pcall(function()
                 RFJobToolAbilities4:InvokeServer("Z", true)
@@ -4918,7 +4953,7 @@ Callback = function(Value)
   _G.TravelDres = Value
 end})
 spawn(function()
-  while task.wait(Sec) do
+  while __DIO_wait(Sec) do
     pcall(function()
       if _G.TravelDres then
         if plr.Data.Level.Value >= 700 then
@@ -4953,7 +4988,7 @@ Callback = function(Value)
   _G.AutoZou = Value
 end})
 spawn(function()
-  while task.wait(Sec) do
+  while __DIO_wait(Sec) do
     pcall(function()
       if _G.AutoZou then
    	    if plr.Data.Level.Value >= 1500 then
@@ -5065,7 +5100,7 @@ Callback = function(Value)
   _G.Auto_Tushita = Value
 end})
 spawn(function()
-  while task.wait(Sec) do
+  while __DIO_wait(Sec) do
     pcall(function()
       if _G.Auto_Tushita then
         if workspace.Map.Turtle:FindFirstChild("TushitaGate") then
@@ -5074,7 +5109,7 @@ spawn(function()
             wait(0.7)
           else
             EquipWeapon("Holy Torch")
-            task.wait(1)
+            __DIO_wait(1)
             repeat task.wait() _tp(CFrame.new(-10752, 417, -9366)) until not _G.Auto_Tushita or (CFrame.new(-10752, 417, -9366).Position - plr.Character.HumanoidRootPart.Position).Magnitude <= 10
             wait(.7)
             repeat task.wait() _tp(CFrame.new(-11672, 334, -9474)) until not _G.Auto_Tushita or (CFrame.new(-11672, 334, -9474).Position - plr.Character.HumanoidRootPart.Position).Magnitude <= 10
@@ -5104,7 +5139,7 @@ Callback = function(Value)
   _G.Auto_Yama = Value
 end})
 spawn(function()
-  while task.wait(Sec) do
+  while __DIO_wait(Sec) do
     pcall(function()
       if _G.Auto_Yama then
 	    if replicated.Remotes.CommF_:InvokeServer("EliteHunter", "Progress") < 30 then
@@ -5128,7 +5163,7 @@ end)
 Tabs.Quests:AddSection("Skull Guitars / Misc")
 local CheckSoul = Tabs.Quests:AddParagraph("Skull Guitar Quests", "")
 spawn(function()
-    while task.wait(1) do -- [FIX PERF 62] 0.2 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+    while __DIO_wait(1) do -- [FIX PERF 62] 0.2 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
         pcall(function()
             if Quest1 == true then 
                 CheckSoul:SetDesc("Quest Number : Quest1")
@@ -5154,7 +5189,7 @@ Callback = function(Value)
   _G.Auto_Soul_Guitar = Value
 end})
 task.spawn(function()
-  while task.wait(1) do -- [FIX PERF 62] 0.1 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+  while __DIO_wait(1) do -- [FIX PERF 62] 0.1 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
     if _G.Auto_Soul_Guitar then 
       pcall(function() 
         local v = GetConnectionEnemies("Living Zombie")
@@ -5215,7 +5250,7 @@ GetFirePlacard = function(Number,Side)
 end
 spawn(function()
   repeat task.wait() until _G.Auto_Soul_Guitar
-  while task.wait(Sec) do
+  while __DIO_wait(Sec) do
     pcall(function()
       if _G.Auto_Soul_Guitar then
         if World3 then
@@ -5331,7 +5366,7 @@ Callback = function(Value)
   _G.AutoMatSoul = Value
 end})
 spawn(function()
-  while task.wait(Sec) do
+  while __DIO_wait(Sec) do
     pcall(function()
       if _G.AutoMatSoul and GetWP("Skull Guitar") == false then
 	    if GetM("Bones") >= 500 and GetM("Ectoplasm") >= 250 and GetM("Dark Fragment") >= 1 then
@@ -5375,7 +5410,7 @@ end)
 Tabs.Quests:AddSection("Cursed Dual Katana")
 local CheckCDK = Tabs.Quests:AddParagraph("Number Cursed dual katana quests", "Quest Numbers :")
 spawn(function()  
-    while task.wait(1) do -- [FIX PERF 62] 0.2 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+    while __DIO_wait(1) do -- [FIX PERF 62] 0.2 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
         if QuestYama_1 == true then 
             CheckCDK:SetDesc("Quest Numbers : yama quest 1") 
         elseif QuestYama_2 == true then
@@ -5399,7 +5434,7 @@ Callback = function(Value)
   _G.CDK = Value
 end})
 spawn(function()    
-  while task.wait(Sec) do
+  while __DIO_wait(Sec) do
     pcall(function()
       if _G.CDK then
         replicated.Remotes.CommF_:InvokeServer("CDKQuest","Progress","Good")
@@ -5428,7 +5463,7 @@ Callback = function(Value)
   _G.CDK_YM = Value
 end})
 spawn(function()
-  while task.wait(1) do -- [FIX PERF 62] 0.1 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+  while __DIO_wait(1) do -- [FIX PERF 62] 0.1 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
     pcall(function()
       if _G.CDK_YM then
         if tostring(replicated.Remotes.CommF_:InvokeServer("CDKQuest", "OpenDoor")) ~= "opened" then                  
@@ -5522,7 +5557,7 @@ spawn(function()
   end
 end)
 spawn(function()
-  while task.wait(1) do -- [FIX PERF 62] 0.1 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+  while __DIO_wait(1) do -- [FIX PERF 62] 0.1 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
     pcall(function()
       if _G.CDK_YM then
         if tonumber(replicated.Remotes.CommF_:InvokeServer("CDKQuest","Progress")["Evil"]) == -5 then
@@ -5566,7 +5601,7 @@ Callback = function(Value)
   _G.CDK_TS = Value
 end})
 spawn(function()
-  while task.wait(1) do -- [FIX PERF 62] 0.1 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+  while __DIO_wait(1) do -- [FIX PERF 62] 0.1 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
     pcall(function()
       if _G.CDK_TS then
         if tostring(replicated.Remotes.CommF_:InvokeServer("CDKQuest", "OpenDoor")) ~= "opened" then
@@ -5699,7 +5734,7 @@ Callback = function(Value)
   _G.Tp_LgS = Value
 end})
 spawn(function()
-  while task.wait(Sec) do
+  while __DIO_wait(Sec) do
     if _G.Tp_LgS then
 	  pcall(function()
 	    for _,v in pairs(replicated.NPCs:GetChildren()) do
@@ -5719,7 +5754,7 @@ Callback = function(Value)
   _G.AutoPole = Value
 end})
 spawn(function()
-  while task.wait(Sec) do
+  while __DIO_wait(Sec) do
     if _G.AutoPole then
       pcall(function()
         local v = GetConnectionEnemies("Thunder God")
@@ -5740,7 +5775,7 @@ Callback = function(Value)
   _G.AutoPoleV2 = Value
 end})
 spawn(function()
-  while task.wait(Sec) do
+  while __DIO_wait(Sec) do
     pcall(function()
       if _G.AutoPoleV2 then        
 	   if not GetBP("Pole (1st Form)") then replicated.Remotes.CommF_:InvokeServer("LoadItem","Pole (1st Form)") end
@@ -5774,7 +5809,7 @@ Callback = function(Value)
   _G.AutoSaw = Value
 end})
 spawn(function()
-  while task.wait(1) do -- [FIX PERF 62] 0.35 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+  while __DIO_wait(1) do -- [FIX PERF 62] 0.35 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
     pcall(function()
       if _G.AutoSaw then
         local v = GetConnectionEnemies("The Saw")
@@ -5794,7 +5829,7 @@ Callback = function(Value)
   _G.AutoSaber = Value
 end})
 spawn(function()
-  while task.wait(1) do -- [FIX PERF 62] .2 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+  while __DIO_wait(1) do -- [FIX PERF 62] .2 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
     pcall(function()
       if _G.AutoSaber and plr.Data.Level.Value >= 200 and not plr.Backpack:FindFirstChild("Saber") and not plr.Character:FindFirstChild("Saber") then
         if workspace.Map.Jungle.Final.Part.Transparency == 0 then
@@ -5877,7 +5912,7 @@ Callback = function(Value)
   _G.AutoColShad = Value
 end})
 spawn(function()
-  while task.wait(1) do -- [FIX PERF 62] 0.35 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+  while __DIO_wait(1) do -- [FIX PERF 62] 0.35 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
     if _G.AutoColShad then
       pcall(function()
         local v = GetConnectionEnemies("Cyborg")
@@ -5896,7 +5931,7 @@ Callback = function(Value)
   _G.AutoGetUsoap = Value
 end})
 spawn(function()
-  while task.wait(Sec) do
+  while __DIO_wait(Sec) do
     pcall(function()
       if _G.AutoGetUsoap then
 	   for _, v in pairs(workspace.Characters:GetChildren()) do
@@ -5918,7 +5953,7 @@ Callback = function(Value)
   _G.Greybeard = Value
 end})
 spawn(function()
-  while task.wait(Sec) do
+  while __DIO_wait(Sec) do
     if _G.Greybeard then
       pcall(function()
         if not GetWP("Bisento") then
@@ -5942,7 +5977,7 @@ Callback = function(Value)
   _G.WardenBoss = Value
 end})
 spawn(function()
-  while task.wait(1) do -- [FIX PERF 62] 0.3 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+  while __DIO_wait(1) do -- [FIX PERF 62] 0.3 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
     if _G.WardenBoss then
       pcall(function()
         local v = GetConnectionEnemies("Chief Warden")
@@ -5961,7 +5996,7 @@ Callback = function(Value)
   _G.MarinesCoat = Value
 end})
 spawn(function()
-  while task.wait(1) do -- [FIX PERF 62] 0.3 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+  while __DIO_wait(1) do -- [FIX PERF 62] 0.3 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
     if _G.MarinesCoat then
       pcall(function()
         local v = GetConnectionEnemies("Vice Admiral")
@@ -5980,7 +6015,7 @@ Callback = function(Value)
   _G.SwanCoat = Value
 end})
 spawn(function()
-  while task.wait(1) do -- [FIX PERF 62] 0.3 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+  while __DIO_wait(1) do -- [FIX PERF 62] 0.3 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
     if _G.SwanCoat then
       pcall(function()
         local v = GetConnectionEnemies("Swan")
@@ -6002,7 +6037,7 @@ Callback = function(Value)
 end})
 spawn(function()
   pcall(function()
-    while task.wait(1) do -- [FIX PERF 62] 0.3 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+    while __DIO_wait(1) do -- [FIX PERF 62] 0.3 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
       if _G.IceBossRen then
         local v = GetConnectionEnemies("Awakened Ice Admiral")
         if v then repeat task.wait()Attack.Kill(v,_G.IceBossRen)until _G.IceBossRen == false or not v.Parent or v.Humanoid.Health <= 0
@@ -6020,7 +6055,7 @@ Callback = function(Value)
   _G.KeysRen = Value
 end})
 spawn(function()
-  while task.wait(1) do -- [FIX PERF 62] 0.3 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+  while __DIO_wait(1) do -- [FIX PERF 62] 0.3 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
     pcall(function()
       if _G.KeysRen then
         if plr.Backpack:FindFirstChild(RenMon[3]) or plr.Character:FindFirstChild(RenMon[3]) then
@@ -6044,7 +6079,7 @@ Callback = function(Value)
   _G.AutoTridentW2 = Value
 end})
 spawn(function()
-  while task.wait(1) do -- [FIX PERF 62] 0.3 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+  while __DIO_wait(1) do -- [FIX PERF 62] 0.3 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
     pcall(function()
       if _G.AutoTridentW2 then
         local v = GetConnectionEnemies("Tide Keeper")
@@ -6063,7 +6098,7 @@ Callback = function(Value)
   _G.LongsWord = Value
 end})
 spawn(function()
-  while task.wait(1) do -- [FIX PERF 62] 0.3 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+  while __DIO_wait(1) do -- [FIX PERF 62] 0.3 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
     pcall(function()
       if _G.LongsWord then
         local v = GetConnectionEnemies("Diamond")
@@ -6082,7 +6117,7 @@ Callback = function(Value)
   _G.BlackSpikey = Value
 end})
 spawn(function()
-  while task.wait(1) do -- [FIX PERF 62] 0.3 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+  while __DIO_wait(1) do -- [FIX PERF 62] 0.3 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
     if _G.BlackSpikey then
       pcall(function()
         local v = GetConnectionEnemies("Jeremy")
@@ -6101,7 +6136,7 @@ Callback = function(Value)
   _G.DarkBladev3 = Value
 end})
 spawn(function()
-  while task.wait(Sec) do
+  while __DIO_wait(Sec) do
     pcall(function()
       if _G.DarkBladev3 and World2 then
       if not GetBP("Dark Blade") then replicated.Remotes.CommF_:InvokeServer("LoadItem","Dark Blade") end
@@ -6127,7 +6162,7 @@ Callback = function(Value)
   _G.AutoEcBoss = Value
 end})
 spawn(function()
-  while task.wait(Sec) do
+  while __DIO_wait(Sec) do
     pcall(function()
       if _G.AutoEcBoss then
 	    if GetM("Ectoplasm") >= 99 then
@@ -6152,7 +6187,7 @@ Callback = function(Value)
   _G.Auto_Def_DarkCoat = Value
 end})
 spawn(function()
-  while task.wait(1) do -- [FIX PERF 62] 0.3 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+  while __DIO_wait(1) do -- [FIX PERF 62] 0.3 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
     if _G.Auto_Def_DarkCoat then
       pcall(function()
         if GetBP("Fist of Darkness") and not workspace.Enemies:FindFirstChild("Darkbeard") then          
@@ -6175,7 +6210,7 @@ Callback = function(Value)
   _G.Auto_DonAcces = Value
 end})
 spawn(function()
-  while task.wait(1) do -- [FIX PERF 62] 0.3 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+  while __DIO_wait(1) do -- [FIX PERF 62] 0.3 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
     if _G.Auto_DonAcces then
       pcall(function()
         if replicated.Remotes.CommF_:InvokeServer("GetUnlockables").FlamingoAccess == nil and plr.Data.Level.Value >= 1500 then
@@ -6225,7 +6260,7 @@ Callback = function(Value)
   _G.Auto_SwanGG = Value
 end})
 spawn(function()
-  while task.wait(1) do -- [FIX PERF 62] 0.35 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+  while __DIO_wait(1) do -- [FIX PERF 62] 0.35 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
     if _G.Auto_SwanGG then
       pcall(function()
         local v = GetConnectionEnemies("Don Swan")
@@ -6246,7 +6281,7 @@ Callback = function(Value)
   _G.AutoBigmom = Value
 end})
 spawn(function()
-  while task.wait(Sec) do
+  while __DIO_wait(Sec) do
     if _G.AutoBigmom then
       pcall(function()
         local bx = GetConnectionEnemies("Cake Queen")
@@ -6265,7 +6300,7 @@ Callback = function(Value)
   _G.Auto_Cavender = Value
 end})
 spawn(function()
-  while task.wait(Sec) do
+  while __DIO_wait(Sec) do
     pcall(function()
       if _G.Auto_Cavender then
         local v = GetConnectionEnemies("Beautiful Pirate")
@@ -6284,7 +6319,7 @@ Callback = function(Value)
   _G.TwinHook = Value
 end})
 spawn(function()
-  while task.wait(Sec) do
+  while __DIO_wait(Sec) do
     pcall(function()
       if _G.TwinHook then
         local v = GetConnectionEnemies("Captain Elephant")
@@ -6305,7 +6340,7 @@ Callback = function(Value)
   _G.AutoSerpentBow = Value
 end})
 spawn(function()
-  while task.wait(Sec) do
+  while __DIO_wait(Sec) do
     if _G.AutoSerpentBow then
       local v = GetConnectionEnemies("Hydra Leader")
       if v then	repeat wait() Attack.Kill(v,_G.AutoSerpentBow)until not _G.AutoSerpentBow or not v.Parent or v.Humanoid.Health <= 0
@@ -6322,7 +6357,7 @@ Callback = function(Value)
   _G.AutoKilo = Value
 end})
 spawn(function()
-  while task.wait(1) do -- [FIX PERF 62] 0.35 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+  while __DIO_wait(1) do -- [FIX PERF 62] 0.35 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
     if _G.AutoKilo then
       pcall(function()
         local v = GetConnectionEnemies("Kilo Admiral")
@@ -6343,7 +6378,7 @@ Callback = function(Value)
   _G.Tp_MasterA = Value
 end})
 spawn(function()
-  while task.wait(1) do -- [FIX PERF 62] 0.1 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+  while __DIO_wait(1) do -- [FIX PERF 62] 0.1 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
     if _G.Tp_MasterA then
 	  pcall(function()
 	    for _,v in pairs(replicated.NPCs:GetChildren()) do
@@ -6368,7 +6403,7 @@ Callback = function(Value)
 end})
 spawn(function()
   pcall(function()
-    while task.wait(Sec) do
+    while __DIO_wait(Sec) do
       if _G.Auto_Rainbow_Haki then
         if plr.PlayerGui.Main.Quest.Visible == false then
           if _G.GetQFast then
@@ -6448,7 +6483,7 @@ Callback = function(Value)
   _G.obsFarm = Value
 end})
 spawn(function()
-  while task.wait(1) do -- [FIX PERF 62] 0.35 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+  while __DIO_wait(1) do -- [FIX PERF 62] 0.35 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
     pcall(function()
       if _G.obsFarm then        
         replicated.Remotes.CommE:FireServer("Ken",true)
@@ -6463,7 +6498,7 @@ spawn(function()
   end
 end)    
 spawn(function()      
-  while task.wait(1) do -- [FIX PERF 62] .2 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+  while __DIO_wait(1) do -- [FIX PERF 62] .2 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
     pcall(function()
       if _G.obsFarm then
         if World1 then
@@ -6521,7 +6556,7 @@ Callback = function(Value)
   _G.AutoKenVTWO = Value
 end})
 spawn(function()
-  while task.wait(Sec) do
+  while __DIO_wait(Sec) do
     if _G.AutoKenVTWO then
       pcall(function()
       local Kv2Pos1 = CFrame.new(-12444.78515625, 332.40396118164, -7673.1806640625)
@@ -6605,7 +6640,7 @@ Callback = function(Value)
   _G.Bartilo_Quest = Value
 end})
 spawn(function()
-  while task.wait(1) do -- [FIX PERF 62] 0.8 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+  while __DIO_wait(1) do -- [FIX PERF 62] 0.8 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
     pcall(function()
       if _G.Bartilo_Quest and Lv >= 850 then
       local Qbart = plr.PlayerGui.Main.Quest
@@ -6672,7 +6707,7 @@ Callback = function(Value)
   _G.CitizenQuest = Value
 end})
 spawn(function()	
-  while task.wait(Sec) do
+  while __DIO_wait(Sec) do
     pcall(function()
       if _G.CitizenQuest then
         if Lv >= 1800 and replicated.Remotes.CommF_:InvokeServer("CitizenQuestProgress").KilledBandits == false then
@@ -6719,7 +6754,7 @@ Callback = function(Value)
   _G.DummyMan = Value
 end})
 spawn(function()
-  while task.wait(Sec) do
+  while __DIO_wait(Sec) do
     if _G.DummyMan then
       pcall(function()
         if plr.PlayerGui.Main.Quest.Visible == false then	
@@ -6752,7 +6787,7 @@ Callback = function(Value)
   _G.Auto_SuperHuman = Value
 end})
 spawn(function()
-  while task.wait(Sec) do
+  while __DIO_wait(Sec) do
     pcall(function()
       if _G.Auto_SuperHuman then
       local M_Beli = plr.Data.Beli.Value
@@ -6786,7 +6821,7 @@ Callback = function(Value)
   _G.AutoDeathStep = Value
 end})
 spawn(function()
-  while task.wait(Sec) do
+  while __DIO_wait(Sec) do
     if _G.AutoDeathStep then
       pcall(function()
         if plr:FindFirstChild("WeaponAssetCache") then  
@@ -6819,7 +6854,7 @@ Callback = function(Value)
   _G.Auto_SharkMan_Karate = Value
 end})
 spawn(function() 
-  while task.wait(Sec) do
+  while __DIO_wait(Sec) do
     if _G.Auto_SharkMan_Karate then
       pcall(function()
         if plr:FindFirstChild("WeaponAssetCache") then  
@@ -6856,7 +6891,7 @@ Callback = function(Value)
   _G.Auto_Electric_Claw = Value
 end})
 spawn(function()
-  while task.wait(Sec) do
+  while __DIO_wait(Sec) do
     if _G.Auto_Electric_Claw then
       pcall(function()
         if plr:FindFirstChild("WeaponAssetCache") then 
@@ -6880,7 +6915,7 @@ Callback = function(Value)
   _G.AutoDragonTalon = Value
 end})
 spawn(function()
-  while task.wait(Sec) do
+  while __DIO_wait(Sec) do
     if _G.AutoDragonTalon then
       pcall(function()
         if plr:FindFirstChild("WeaponAssetCache") then 
@@ -6901,7 +6936,7 @@ Callback = function(Value)
   _G.Auto_God_Human = Value
 end})
 spawn(function()
-  while task.wait(1) do -- [FIX PERF 62] 0.1 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+  while __DIO_wait(1) do -- [FIX PERF 62] 0.1 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
     pcall(function()
       if _G.Auto_God_Human then
         if replicated.Remotes.CommF_:InvokeServer("BuyGodhuman",true) == "Bring me 20 Fish Tails, 20 Magma Ore, 10 Dragon Scales and 10 Mystic Droplets." then
@@ -6951,7 +6986,7 @@ Callback = function(Value)
   _G.Snaguine = Value
 end})
 spawn(function()
-  while task.wait(Sec) do
+  while __DIO_wait(Sec) do
     if _G.Snaguine then
       pcall(function()
         if not GetBP("Sanguine Art") then replicated.Remotes.CommF_:InvokeServer("Sanguine Art") end
@@ -7001,7 +7036,7 @@ Tabs.Race:AddSection("Mystic Island / Full Moon")
 local FullMOOn = Tabs.Race:AddParagraph("FullMoon Status", "")
 local Ismirage = Tabs.Race:AddParagraph("Mirage Island Status", "")
 spawn(function()
-    while task.wait(1) do -- [FIX PERF 62] 0.9 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+    while __DIO_wait(1) do -- [FIX PERF 62] 0.9 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
         if workspace.Map:FindFirstChild("MysticIsland") or workspace._WorldOrigin.Locations:FindFirstChild("Mirage Island") then
             Ismirage:SetDesc("Mirage Island : True")
         else
@@ -7010,7 +7045,7 @@ spawn(function()
     end
 end)
 spawn(function()
-    while task.wait(1) do -- [FIX PERF 62] 0.2 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+    while __DIO_wait(1) do -- [FIX PERF 62] 0.2 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
         pcall(function()
             local moon8 = "http://www.roblox.com/asset/?id=9709150401"
             local moon7 = "http://www.roblox.com/asset/?id=9709150086"
@@ -7050,7 +7085,7 @@ Callback = function(Value)
   _G.FindMirage = Value
 end})
 spawn(function()
-  while task.wait(1) do -- [FIX PERF 62] 0.1 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+  while __DIO_wait(1) do -- [FIX PERF 62] 0.1 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
     if _G.FindMirage then 
       pcall(function()
         if not workspace["_WorldOrigin"].Locations:FindFirstChild("Mirage Island", true) then                
@@ -7091,7 +7126,7 @@ Tabs.Race:AddToggle({
             task.spawn(function()
                 while MirageIslandESP do
 pcall(UpdateIslandMirageESP) -- [FIX PERF 28] pcall chong thread chet khi nhan vat respawn
-                    task.wait(1)
+                    __DIO_wait(1)
                 end
             end)
         else
@@ -7147,7 +7182,7 @@ Tabs.Race:AddToggle({
 })
 
 spawn(function()
-    while task.wait(1) do -- [FIX PERF 62] 0.1 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+    while __DIO_wait(1) do -- [FIX PERF 62] 0.1 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
         pcall(function()
             if _G.AutoMysticIsland then
                 for _, location in pairs(game:GetService("Workspace")._WorldOrigin.Locations:GetChildren()) do
@@ -7167,7 +7202,7 @@ Callback = function(Value)
   _G.HighestMirage = Value
 end})
 spawn(function()
-  while task.wait(Sec) do
+  while __DIO_wait(Sec) do
     if _G.HighestMirage then 
       pcall(function()
       if workspace["_WorldOrigin"].Locations:FindFirstChild("Mirage Island",true) then _tp(workspace.Map.MysticIsland.Center.CFrame*CFrame.new(0,400,0))end
@@ -7184,7 +7219,7 @@ Callback = function(Value)
 end})
 spawn(function()
   pcall(function()
-    while task.wait(1) do -- [FIX PERF 62] 0.1 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+    while __DIO_wait(1) do -- [FIX PERF 62] 0.1 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
       if _G.TPGEAR then
         for i,v in pairs(workspace.Map:FindFirstChild('MysticIsland'):GetChildren()) do
           if v.Name == "Part" then
@@ -7204,7 +7239,7 @@ Callback = function(Value)
 end})
 spawn(function()
   pcall(function()
-    while task.wait(Sec) do
+    while __DIO_wait(Sec) do
       if _G.can then
         for i,v in pairs(workspace.Map:FindFirstChild('MysticIsland'):GetChildren()) do
           if v.Name == "Part" then
@@ -7227,7 +7262,7 @@ Callback = function(Value)
   _G.Addealer = Value
 end})
 spawn(function()
-  while task.wait(1) do -- [FIX PERF 62] 0.1 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+  while __DIO_wait(1) do -- [FIX PERF 62] 0.1 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
     if _G.Addealer then
 	  pcall(function()
 	    for _,v in pairs(replicated.NPCs:GetChildren()) do
@@ -7245,7 +7280,7 @@ Callback = function(Value)
   _G.FarmChestM = Value
 end})
 spawn(function()
-  while task.wait(1) do -- [FIX PERF 62] 0.35 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+  while __DIO_wait(1) do -- [FIX PERF 62] 0.35 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
     if _G.FarmChestM then
       pcall(function()
         if workspace.Map.MysticIsland.Chests:FindFirstChild("DiamondChest") or workspace.Map.MysticIsland.Chests:FindFirstChild("FragChest") then
@@ -7296,7 +7331,7 @@ workspace.CurrentCamera.CFrame = CFrame.new(workspace.CurrentCamera.CFrame.Posit
 plr.Character.HumanoidRootPart.CFrame = CFrame.new(plr.Character.HumanoidRootPart.Position,Lighting:GetMoonDirection() + plr.Character.HumanoidRootPart.CFrame.Position)
 end
 task.spawn(function()
-  while task.wait(1) do -- [FIX PERF 62] 0.3 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+  while __DIO_wait(1) do -- [FIX PERF 62] 0.3 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
     if LookM then
       pcall(MoveCamtoMoon) -- [FIX PERF 41] pcall: HumanoidRootPart truy cap truc tiep trong MoveCamtoMoon
       wait(.1)
@@ -7321,7 +7356,7 @@ function MoveCamtoMoon()
 end
 
 task.spawn(function()
-    while task.wait(1) do -- [FIX PERF 62] 0.1 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+    while __DIO_wait(1) do -- [FIX PERF 62] 0.1 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
         if LookMV3 then
             pcall(MoveCamtoMoon) -- [FIX PERF 42] pcall chong thread chet khi respawn
             replicated.Remotes.CommE:FireServer("ActivateAbility")            
@@ -7341,7 +7376,7 @@ Callback = function(Value)
   _G.Auto_Mink = Value
 end})
 spawn(function()
-  while task.wait(1) do -- [FIX PERF 62] 0.6 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+  while __DIO_wait(1) do -- [FIX PERF 62] 0.6 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
     pcall(function()
       if _G.Auto_Mink then
         if replicated.Remotes.CommF_:InvokeServer("Alchemist","1") ~= 2 then
@@ -7379,7 +7414,7 @@ Callback = function(Value)
   _G.Auto_Human = Value
 end})
 spawn(function()
-  while task.wait(Sec) do
+  while __DIO_wait(Sec) do
     pcall(function()
       if _G.Auto_Human then
         if replicated.Remotes.CommF_:InvokeServer("Alchemist","1") ~= -2 then
@@ -7426,7 +7461,7 @@ Callback = function(Value)
   _G.Auto_Skypiea = Value
 end})
 spawn(function()
-  while task.wait(Sec) do
+  while __DIO_wait(Sec) do
     pcall(function()
       if _G.Auto_Skypiea then
         if replicated.Remotes.CommF_:InvokeServer("Alchemist","1") ~= -2 then
@@ -7469,7 +7504,7 @@ Callback = function(Value)
   _G.Auto_Fish = Value
 end})
 spawn(function()
-  while task.wait(Sec) do
+  while __DIO_wait(Sec) do
     pcall(function()
       if _G.Auto_Fish then
         if replicated.Remotes.CommF_:InvokeServer("Alchemist","1") ~= -2 then
@@ -7507,7 +7542,7 @@ local CheckTier = Tabs.Race:AddParagraph("Tiers V4 Status", "")
 spawn(function()
     local __prevTier = nil -- [FIX PERF 31] SetDesc chi khi gia tri DOI (ui khong ve lai voi cung chuoi)
     pcall(function()
-        while task.wait(1.2) do -- [FIX FPS 2] 0.2s -> 1.2s
+        while __DIO_wait(1.2) do -- [FIX FPS 2] 0.2s -> 1.2s
             local __v = "Tiers - V4 : " .. " " .. plr.Data.Race.C.Value
             if __v ~= __prevTier then __prevTier = __v CheckTier:SetDesc(__v) end
         end
@@ -7521,7 +7556,7 @@ Callback = function(Value)
   _G.Lver = Value
 end})
 spawn(function()
-  while task.wait(Sec) do
+  while __DIO_wait(Sec) do
     if _G.Lver then
       pcall(function()
         for x,c in pairs(workspace.Map["Temple of Time"]:GetDescendants()) do
@@ -7539,7 +7574,7 @@ Callback = function(Value)
   _G.AcientOne = Value
 end})
 spawn(function()
-  while task.wait(Sec) do
+  while __DIO_wait(Sec) do
     pcall(function()
       if _G.AcientOne then
         local BonesTable = {"Reborn Skeleton","Living Zombie","Demonic Soul","Posessed Mummy"}
@@ -7596,7 +7631,7 @@ Callback = function()
             end
         end
         
-        task.wait(2)
+        __DIO_wait(2)
 
         tween(CFrame.new(28981.552734375, 14888.4267578125, - 120.245849609375))
     end
@@ -7636,7 +7671,7 @@ Callback = function(Value)
   _G.TPDoor = Value
 end})
 spawn(function()
-  while task.wait(Sec) do
+  while __DIO_wait(Sec) do
     pcall(function()
       if _G.TPDoor then
 	    if tostring(plr.Data.Race.Value) == "Mink" then
@@ -7675,7 +7710,7 @@ GetSeaBeastTrial = function()
   end
 end
 spawn(function()
-  while task.wait(Sec) do
+  while __DIO_wait(Sec) do
     pcall(function()
       if _G.Complete_Trials then
         if tostring(plr.Data.Race.Value) == "Mink" then
@@ -7686,7 +7721,7 @@ spawn(function()
   end
 end)
 spawn(function()
-  while task.wait(Sec) do
+  while __DIO_wait(Sec) do
     pcall(function() 
       if _G.Complete_Trials then
 	    if tostring(plr.Data.Race.Value) == "Fishman" then
@@ -7715,7 +7750,7 @@ spawn(function()
   end
 end)
 spawn(function()
-  while task.wait(Sec) do
+  while __DIO_wait(Sec) do
     pcall(function()
       if _G.Complete_Trials then
         if tostring(plr.Data.Race.Value) == "Cyborg" then
@@ -7726,7 +7761,7 @@ spawn(function()
   end
 end)
 spawn(function()
-  while task.wait(Sec) do
+  while __DIO_wait(Sec) do
     pcall(function()
       if _G.Complete_Trials then
         if tostring(plr.Data.Race.Value) == "Skypiea" then
@@ -7737,7 +7772,7 @@ spawn(function()
   end
 end)
 spawn(function()
-  while task.wait(1) do -- [FIX PERF 62] .1 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+  while __DIO_wait(1) do -- [FIX PERF 62] .1 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
     pcall(function()
       if _G.Complete_Trials then
 	    if tostring(plr.Data.Race.Value) == "Human" or tostring(plr.Data.Race.Value) == "Ghoul" then	      
@@ -7757,7 +7792,7 @@ Callback = function(Value)
   _G.Defeating = Value
 end})
 spawn(function()
-  while task.wait(Sec) do
+  while __DIO_wait(Sec) do
     pcall(function()
       if _G.Defeating then
 	    for _, v in pairs(workspace.Characters:GetChildren()) do
@@ -7789,7 +7824,7 @@ Callback = function(Value)
 end})
 function printBeltName(data) if type(data) == "table" and data.Quest["BeltName"] then return data.Quest["BeltName"] end end
 spawn(function()
-  while task.wait(Sec) do
+  while __DIO_wait(Sec) do
     if _G.Dojoo then
       pcall(function()
         local args = {[1] = {["NPC"] = "Dojo Trainer",["Command"] = "RequestQuest"}}        
@@ -7880,7 +7915,7 @@ checkQuesta=function()local a={[1]={["Context"]="Check"}}local b=nil;pcall(funct
 BackTODoJo=function()for a,b in pairs(game:GetService("Players").LocalPlayer.PlayerGui.Notifications:GetChildren())do if b.Name=="NotificationTemplate"then if string.find(b.Text,"Head back to the Dojo to complete more tasks")then return true end end end;return false end
 DragonMobClear=function(a,b,c)if workspace.Enemies:FindFirstChild(b)then for d,e in pairs(workspace.Enemies:GetChildren())do if e.Name==b and Attack.Alive(e)then if a then Attack.Kill(e,a)end end end else _tp(c)end end
 spawn(function()
-  while task.wait(1) do -- [FIX PERF 62] 0.1 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+  while __DIO_wait(1) do -- [FIX PERF 62] 0.1 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
     if _G.FarmBlazeEM then
       pcall(function()              
         local a,v,h,x = checkQuesta()                  
@@ -7923,7 +7958,7 @@ spawn(function()
   end
 end)
 spawn(function()
-  while task.wait(1) do -- [FIX PERF 62] 0.3 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+  while __DIO_wait(1) do -- [FIX PERF 62] 0.3 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
     if _G.FarmBlazeEM then
       pcall(function()              
         if workspace.EmberTemplate:FindFirstChild("Part") then
@@ -7947,7 +7982,7 @@ Callback = function(Value)
   _G.UPGDrago = Value
 end})
 spawn(function()
-  while task.wait(Sec) do
+  while __DIO_wait(Sec) do
     pcall(function()
       if _G.UPGDrago then     
         if GetQuestDracoLevel() == false then
@@ -7973,7 +8008,7 @@ Callback = function(Value)
   _G.DragoV1 = Value
 end})
 spawn(function()
-  while task.wait(Sec) do
+  while __DIO_wait(Sec) do
     pcall(function()
       if _G.DragoV1 then     
         if GetM("Dragon Egg") <= 0 then
@@ -7998,7 +8033,7 @@ Callback = function(Value)
   _G.AutoFireFlowers = Value
 end})
 spawn(function()
-  while task.wait(Sec) do
+  while __DIO_wait(Sec) do
     if _G.AutoFireFlowers then
       local FireFlower = workspace:FindFirstChild("FireFlowers")
       local v = GetConnectionEnemies("Forest Pirate")
@@ -8030,7 +8065,7 @@ Callback = function(Value)
   _G.DragoV3 = Value
 end})
 spawn(function()
-  while task.wait(Sec) do
+  while __DIO_wait(Sec) do
     pcall(function()
       if _G.DragoV3 then     
         repeat wait()
@@ -8053,7 +8088,7 @@ Callback = function(Value)
   _G.Relic123 = Value
 end})
 spawn(function()
-  while task.wait(Sec) do
+  while __DIO_wait(Sec) do
     if _G.Relic123 then
       pcall(function()
         if workspace.Map:FindFirstChild("DracoTrial") then
@@ -8083,7 +8118,7 @@ Callback = function(Value)
   _G.TrainDrago = Value
 end})
 spawn(function()
-  while task.wait(Sec) do
+  while __DIO_wait(Sec) do
     pcall(function()
       if _G.TrainDrago then
         local DragoM = {"Venomous Assailant","Hydra Enforcer"}
@@ -8111,7 +8146,7 @@ Callback = function(Value)
   _G.TpDrago_Prehis = Value
 end})
 spawn(function()
-  while task.wait(Sec) do
+  while __DIO_wait(Sec) do
     if _G.TpDrago_Prehis then
       local v748 = workspace.Map.PrehistoricIsland:FindFirstChild("TrialTeleport");
       if (v748 and v748:IsA("Part")) then _tp(CFrame.new(v748.Position)) end
@@ -8126,7 +8161,7 @@ Callback = function(Value)
   _G.BuyDrago = Value
 end})
 spawn(function()
-  while task.wait(Sec) do
+  while __DIO_wait(Sec) do
     if _G.BuyDrago then
       pcall(function()
         if (CFrame.new(5814.42724609375, 1208.3267822265625, 884.5785522460938).Position - Root.Position).Magnitude >= 300 then
@@ -8148,7 +8183,7 @@ Callback = function(Value)
   _G.DT_Uzoth = Value
 end})
 spawn(function()
-  while task.wait(Sec) do
+  while __DIO_wait(Sec) do
     if _G.DT_Uzoth then
       -- [FIX UZOTH] nil-guard + pcall: plr.Character/HumanoidRootPart nil khi chet/respawn
       -- lam CHET thread -> toggle Upgrade Dragon Talon lac hong. Gio bao an toan.
@@ -8222,7 +8257,7 @@ Tabs.Prehistoric:AddButton({
 Tabs.Prehistoric:AddSection("Prehistoric Island")
 local Check_Volcano = Tabs.Prehistoric:AddParagraph("Prehistoric Island Status", "")
 spawn(function()
-    while task.wait(1.1) do -- [FIX FPS 2] 0.2s -> 1.1s
+    while __DIO_wait(1.1) do -- [FIX FPS 2] 0.2s -> 1.1s
         if workspace.Map:FindFirstChild("PrehistoricIsland") or workspace._WorldOrigin.Locations:FindFirstChild("Prehistoric Island") then
             Check_Volcano:SetDesc("Prehistoric Island : True")
         else
@@ -8254,7 +8289,7 @@ Tabs.Prehistoric:AddToggle({
 task.spawn(function()
     local RF = game:GetService("ReplicatedStorage").Modules.Net["RF/Craft"]
 
-    while task.wait(1) do -- [FIX PERF 62] 0.3 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+    while __DIO_wait(1) do -- [FIX PERF 62] 0.3 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
         if getgenv().AutoCraftVolcanic then
             pcall(function()
                 RF:InvokeServer(
@@ -8282,7 +8317,7 @@ Tabs.Prehistoric:AddToggle({
 local targetDestination = nil
 
 spawn(function()
-    while task.wait(Sec) do
+    while __DIO_wait(Sec) do
         pcall(function()
             if _G.Prehis_Find then
                 local char = plr.Character
@@ -8367,7 +8402,7 @@ Tabs.Prehistoric:AddToggle({
     end
 })
 spawn(function()
-    while task.wait(1) do -- [FIX PERF 62] 0.1 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+    while __DIO_wait(1) do -- [FIX PERF 62] 0.1 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
         if _G.AutoStartPrehistoric then
             pcall(function()
                 local prehistoricIsland = workspace["_WorldOrigin"].Locations:FindFirstChild("Prehistoric Island", true)
@@ -8405,7 +8440,7 @@ Tabs.Prehistoric:AddToggle({
 
 
 spawn(function()
-    while task.wait(1) do -- [FIX PERF 38] 0.3 -> 1: GetDescendants ca island nang, quet 1 lan/s du
+    while __DIO_wait(1) do -- [FIX PERF 38] 0.3 -> 1: GetDescendants ca island nang, quet 1 lan/s du
         if _G.Prehis_Skills then
             pcall(function()
                 local island = workspace.Map:FindFirstChild("PrehistoricIsland")
@@ -8437,7 +8472,7 @@ spawn(function()
 end)
 
 spawn(function()
-    while task.wait(Sec) do
+    while __DIO_wait(Sec) do
         if _G.Prehis_Skills then
             pcall(function()
                 local golem = GetConnectionEnemies("Lava Golem")
@@ -8457,7 +8492,7 @@ end)
 
 
 spawn(function()
-    while task.wait(Sec) do
+    while __DIO_wait(Sec) do
         if _G.Prehis_Skills then
             pcall(function()
                 local island = workspace.Map:FindFirstChild("PrehistoricIsland")
@@ -8508,7 +8543,7 @@ local Range = 500
 local Delay = 2   
 
 spawn(function()
-    while task.wait(Delay) do
+    while __DIO_wait(Delay) do
         if _G.KillAuraFull then
             pcall(function()
                 local plr = game.Players.LocalPlayer
@@ -8540,7 +8575,7 @@ Callback = function(Value)
   _G.Prehis_DB = Value
 end})
 spawn(function()
-  while task.wait(Sec) do
+  while __DIO_wait(Sec) do
     pcall(function()
       if _G.Prehis_DB then
         if workspace:FindFirstChild("DinoBone") then
@@ -8560,7 +8595,7 @@ Callback = function(Value)
   _G.Prehis_DE = Value
 end})
 spawn(function()
-  while task.wait(Sec) do
+  while __DIO_wait(Sec) do
     pcall(function()
       if _G.Prehis_DE then
       if workspace.Map.PrehistoricIsland.Core.SpawnedDragonEggs:FindFirstChild("DragonEgg") then _tp(workspace.Map.PrehistoricIsland.Core.SpawnedDragonEggs:FindFirstChild("DragonEgg").Molten.CFrame) fireproximityprompt(workspace.Map.PrehistoricIsland.Core.SpawnedDragonEggs.DragonEgg.Molten.ProximityPrompt, 30) end        
@@ -8576,7 +8611,7 @@ Callback = function(Value)
   _G.ResetPH = Value
 end})
 spawn(function()
-  while task.wait(Sec) do
+  while __DIO_wait(Sec) do
     pcall(function()
       if _G.ResetPH then
         local v748 = workspace.Map.PrehistoricIsland:FindFirstChild("TrialTeleport");
@@ -8649,7 +8684,7 @@ Tabs.SeaEvent:AddToggle({
     end
 })
 spawn(function()
-    while task.wait(1) do -- [FIX PERF 62] 0.1 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+    while __DIO_wait(1) do -- [FIX PERF 62] 0.1 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
         pcall(function()
             if getgenv().AutoPressW then
                 local __chW = game.Players.LocalPlayer.Character
@@ -8669,7 +8704,7 @@ Tabs.SeaEvent:AddToggle({
     end
 })
 spawn(function()
-    while task.wait(1) do -- [FIX PERF 62] 0.5 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+    while __DIO_wait(1) do -- [FIX PERF 62] 0.5 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
         pcall(function()
             if #game:GetService("Workspace").Boats:GetChildren() == 0 then return end
             for i, boat in pairs(game:GetService("Workspace").Boats:GetChildren()) do
@@ -8836,7 +8871,7 @@ Callback = function(Value)
   _G.SailBoats = Value
 end})
 spawn(function()
-  while task.wait(1) do -- [FIX PERF 62] 0.1 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+  while __DIO_wait(1) do -- [FIX PERF 62] 0.1 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
     if _G.SailBoats then 
       pcall(function()        
         local myBoat = CheckBoat()
@@ -8870,7 +8905,7 @@ spawn(function()
     end
   end
 end)
-spawn(function()while task.wait(0.5)do pcall(function() -- [FIX PERF 11] Sec(0.1) -> 0.5 + khong co thuyen thi bo qua: truoc day quet GetDescendants TAT CA thuyen 10 lan/s VA ghi CanCollide=true len moi part ke ca khi tat het toggle
+spawn(function()while __DIO_wait(0.5)do pcall(function() -- [FIX PERF 11] Sec(0.1) -> 0.5 + khong co thuyen thi bo qua: truoc day quet GetDescendants TAT CA thuyen 10 lan/s VA ghi CanCollide=true len moi part ke ca khi tat het toggle
 if #workspace.Boats:GetChildren() == 0 then return end
 for a,b in pairs(workspace.Boats:GetChildren())do for c,d in pairs(workspace.Boats[b.Name]:GetDescendants())do if d:IsA("BasePart")then if _G.SailBoats or _G.Prehis_Find or _G.FindMirage or _G.FrozenDimension or _G.SailBoat_Hydra or _G.AutofindKitIs then d.CanCollide=false else d.CanCollide=true end end end end end)end end)
 
@@ -8941,7 +8976,7 @@ Callback = function(Value)
 end})
 
 spawn(function()
-  while task.wait(1) do -- [FIX PERF 62] 0.3 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+  while __DIO_wait(1) do -- [FIX PERF 62] 0.3 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
     pcall(function()	
       if _G.Shark then local a={"Shark"}if CheckShark()then for b,c in pairs(workspace.Enemies:GetChildren())do if table.find(a,c.Name)then if Attack.Alive(c)then repeat task.wait()Attack.Kill(c,_G.Shark)until _G.Shark==false or not c.Parent or c.Humanoid.Health<=0 end end end end end
       if _G.TerrorShark then local a={"Terrorshark"}if CheckTerrorShark()then for b,c in pairs(workspace.Enemies:GetChildren())do if table.find(a,c.Name)then if Attack.Alive(c)then repeat task.wait()Attack.KillSea(c,_G.TerrorShark)until _G.TerrorShark==false or not c.Parent or c.Humanoid.Health<=0 end end end end end
@@ -8959,7 +8994,7 @@ end)
 Tabs.SeaEvent:AddSection("Kitsune Island / Event")
 local Check_Kitsu = Tabs.SeaEvent:AddParagraph("Kitsune Island Status", "")
 spawn(function()
-    while task.wait(1.3) do -- [FIX FPS 2] 0.2s -> 1.3s
+    while __DIO_wait(1.3) do -- [FIX FPS 2] 0.2s -> 1.3s
         if workspace.Map:FindFirstChild("KitsuneIsland") or workspace._WorldOrigin.Locations:FindFirstChild("Kitsune Island") then
             Check_Kitsu:SetDesc("Kitsune Island : True")
         else
@@ -8976,7 +9011,7 @@ Callback = function(Value)
   _G.AutofindKitIs = Value
 end})
 spawn(function()
-  while task.wait(1) do -- [FIX PERF 62] 0.1 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+  while __DIO_wait(1) do -- [FIX PERF 62] 0.1 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
     if _G.AutofindKitIs then 
       pcall(function()
         if not workspace["_WorldOrigin"].Locations:FindFirstChild("Kitsune Island", true) then                
@@ -9016,7 +9051,7 @@ Callback = function(Value)
   _G.tweenShrine = Value
 end})
 spawn(function()
-  while task.wait(1) do -- [FIX PERF 62] 0.4 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+  while __DIO_wait(1) do -- [FIX PERF 62] 0.4 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
     if _G.tweenShrine then
       pcall(function()
       local kit_is = workspace.Map:FindFirstChild("KitsuneIsland") or game.Workspace._WorldOrigin.Locations:FindFirstChild("Kitsune Island")
@@ -9044,7 +9079,7 @@ Callback = function(Value)
   _G.Collect_Ember = Value
 end})
 spawn(function()
-  while task.wait(1) do -- [FIX PERF 62] .1 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+  while __DIO_wait(1) do -- [FIX PERF 62] .1 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
     if _G.Collect_Ember then
       pcall(function()
         if workspace:WaitForChild("AttachedAzureEmber") or workspace:WaitForChild("EmberTemplate") then
@@ -9066,7 +9101,7 @@ Callback = function(Value)
   _G.Trade_Ember = Value
 end})
 spawn(function()
-  while task.wait(1) do -- [FIX PERF 62] 0.5 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+  while __DIO_wait(1) do -- [FIX PERF 62] 0.5 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
     if _G.Trade_Ember then
       pcall(function()
         if workspace["_WorldOrigin"].Locations:FindFirstChild("Kitsune Island",true) then
@@ -9096,7 +9131,7 @@ Tabs.SeaEvent:AddSection("Frozen Dimension Event")
 local FloD = Tabs.SeaEvent:AddParagraph("FrozenDimension Status", "")
 spawn(function()
     pcall(function()
-        while task.wait(1.4) do -- [FIX FPS 2] 0.2s -> 1.4s
+        while __DIO_wait(1.4) do -- [FIX FPS 2] 0.2s -> 1.4s
             if workspace._WorldOrigin.Locations:FindFirstChild('Frozen Dimension') then
                 FloD:SetDesc('Frozen Dimension : True')
             else
@@ -9109,7 +9144,7 @@ end)
 local SPYING = Tabs.SeaEvent:AddParagraph("Spy Status", "")
 spawn(function()
     local __prevSpy = nil -- [FIX PERF 31] SetDesc chi khi gia tri DOI (ui khong ve lai voi cung chuoi)
-    while task.wait(1.5) do -- [FIX FPS 2] 0.2s -> 1.5s: giam remote InfoLeviathan khi treo
+    while __DIO_wait(1.5) do -- [FIX FPS 2] 0.2s -> 1.5s: giam remote InfoLeviathan khi treo
         pcall(function()
             local spycheck = string.match(replicated.Remotes.CommF_:InvokeServer("InfoLeviathan", "1"), "%d+")
             if spycheck then 
@@ -9142,7 +9177,7 @@ Tabs.SeaEvent:AddToggle({
 task.spawn(function()
     local flyingActive = false
 
-    while task.wait(1) do
+    while __DIO_wait(1) do
         if _G.FrozenDimension and not flyingActive then
             pcall(function()
                 if not plr.Character or not plr.Character:FindFirstChild("HumanoidRootPart") then return end
@@ -9170,7 +9205,7 @@ task.spawn(function()
                     if not myBoat then
                         local buyBoatCFrame = CFrame.new(-16927.451, 9.086, 433.864)
                         TeleportToTarget(buyBoatCFrame)
-                        task.wait(2)
+                        __DIO_wait(2)
                         if not plr.Character or not plr.Character:FindFirstChild("HumanoidRootPart") then return end
                         if (buyBoatCFrame.Position - plr.Character.HumanoidRootPart.Position).Magnitude <= 10 then
                             replicated.Remotes.CommF_:InvokeServer("BuyBoat", _G.SelectedBoat)
@@ -9219,7 +9254,7 @@ task.spawn(function()
 
                         pcall(function()
                             repeat
-                                task.wait(0.15) 
+                                __DIO_wait(0.15) 
 
                                 if not _G.FrozenDimension then break end
                                 if not plr.Character or not plr.Character:FindFirstChild("HumanoidRootPart") then break end
@@ -9324,7 +9359,7 @@ Callback = function(Value)
   _G.FrozenTP = Value
 end})
 spawn(function()
-  while task.wait(1) do -- [FIX PERF 62] 0.5 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+  while __DIO_wait(1) do -- [FIX PERF 62] 0.5 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
     if _G.FrozenTP then
       pcall(function()
       if workspace.Map:FindFirstChild("LeviathanGate") then _tp(workspace.Map.LeviathanGate.CFrame) replicated:WaitForChild("Remotes"):WaitForChild("CommF_"):InvokeServer("OpenLeviathanGate") end
@@ -9342,7 +9377,7 @@ end})
 
 local isRunning = false
 task.spawn(function()
-    while task.wait(1) do -- [FIX PERF 10] 0.5 -> 1.0: moi vong quet 2 lan Workspace:GetDescendants() (rat nang) -> 1 lan/s du
+    while __DIO_wait(1) do -- [FIX PERF 10] 0.5 -> 1.0: moi vong quet 2 lan Workspace:GetDescendants() (rat nang) -> 1 lan/s du
         if _G.ShotHL and not isRunning then
             isRunning = true
             pcall(function()
@@ -9361,7 +9396,7 @@ task.spawn(function()
                 -- Xoay thuyền về hướng tim, giữ nguyên vị trí
                 local lookCFrame = CFrame.lookAt(boatRoot.Position, heartPart.Position)
                 boat:PivotTo(lookCFrame)
-                task.wait(0.3)
+                __DIO_wait(0.3)
 
                 local harpoonSeat = boat:FindFirstChild("HarpoonSeat", true)
                     or boat:FindFirstChild("Seat", true)
@@ -9375,7 +9410,7 @@ task.spawn(function()
                 tween:Play()
                 tween.Completed:Wait()
                 harpoonSeat:Sit(humanoid)
-                task.wait(0.4)
+                __DIO_wait(0.4)
 
                 -- Debug: in tên tất cả RemoteEvent trong thuyền
                 for _, obj in pairs(boat:GetDescendants()) do
@@ -9389,7 +9424,7 @@ task.spawn(function()
                     workspace.CurrentCamera.CFrame.Position,
                     heartPart.Position
                 )
-                task.wait(0.1)
+                __DIO_wait(0.1)
 
                 -- Tính screen position của tim và bắn
                 local screenPos, onScreen = workspace.CurrentCamera
@@ -9398,7 +9433,7 @@ task.spawn(function()
                 if onScreen then
                     VirtualInputManager:SendMouseButtonEvent(
                         screenPos.X, screenPos.Y, 0, true, game, 1)
-                    task.wait(0.1)
+                    __DIO_wait(0.1)
                     VirtualInputManager:SendMouseButtonEvent(
                         screenPos.X, screenPos.Y, 0, false, game, 1)
                 else
@@ -9417,7 +9452,7 @@ Callback = function(Value)
   _G.SailBoat_Hydra = Value
 end})
 spawn(function()
-  while task.wait(1) do -- [FIX PERF 62] 0.1 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+  while __DIO_wait(1) do -- [FIX PERF 62] 0.1 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
     if _G.SailBoat_Hydra then 
       pcall(function()        
         local myBoat = CheckBoat()
@@ -9962,7 +9997,7 @@ Tabs.Esp:AddToggle({
             task.spawn(function()
                 while BerryEsp do
 pcall(berriesEsp) -- [FIX PERF 28] pcall: helper dung plr.Character.Head -> nhan vat chet la thread ESP chet im lang
-                    task.wait(0.4) -- [FIX FPS 4] moi frame -> 0.4s
+                    __DIO_wait(0.4) -- [FIX FPS 4] moi frame -> 0.4s
                 end
             end)
         end
@@ -9989,7 +10024,7 @@ Tabs.Esp:AddToggle({
             task.spawn(function()
                 while PlayerEsp do
 pcall(EspPly) -- [FIX PERF 28] pcall: helper dung plr.Character.Head -> nhan vat chet la thread ESP chet im lang
-                    task.wait(0.4) -- [FIX FPS 4] moi frame -> 0.4s
+                    __DIO_wait(0.4) -- [FIX FPS 4] moi frame -> 0.4s
                 end
             end)
         end
@@ -10013,7 +10048,7 @@ Tabs.Esp:AddToggle({
             task.spawn(function()
                 while ChestESP do
 pcall(ChestEsp) -- [FIX PERF 28] pcall: helper dung plr.Character.Head -> nhan vat chet la thread ESP chet im lang
-                    task.wait(0.4) -- [FIX FPS 4] moi frame -> 0.4s
+                    __DIO_wait(0.4) -- [FIX FPS 4] moi frame -> 0.4s
                 end
             end)
         end
@@ -10038,7 +10073,7 @@ Tabs.Esp:AddToggle({
             task.spawn(function()
                 while DevilFruitESP do
 pcall(DevEsp) -- [FIX PERF 28] pcall: helper dung plr.Character.Head -> nhan vat chet la thread ESP chet im lang
-                    task.wait(0.4) -- [FIX FPS 4] moi frame -> 0.4s
+                    __DIO_wait(0.4) -- [FIX FPS 4] moi frame -> 0.4s
                 end
             end)
         end
@@ -10063,7 +10098,7 @@ Tabs.Esp:AddToggle({
             task.spawn(function()
                 while IslandESP do
 pcall(LocationEsp) -- [FIX PERF 28] pcall: helper dung plr.Character.Head -> nhan vat chet la thread ESP chet im lang
-                    task.wait(0.4) -- [FIX FPS 4] moi frame -> 0.4s
+                    __DIO_wait(0.4) -- [FIX FPS 4] moi frame -> 0.4s
                 end
             end)
         end
@@ -10088,7 +10123,7 @@ Tabs.Esp:AddToggle({
             task.spawn(function()
                 while FlowerESP do
 pcall(flowerEsp) -- [FIX PERF 28] pcall: helper dung plr.Character.Head -> nhan vat chet la thread ESP chet im lang
-                    task.wait(0.4) -- [FIX FPS 4] moi frame -> 0.4s
+                    __DIO_wait(0.4) -- [FIX FPS 4] moi frame -> 0.4s
                 end
             end)
         end
@@ -10109,7 +10144,7 @@ Tabs.Esp:AddToggle({
             task.spawn(function()
                 while LegenS do
 pcall(LegenSword) -- [FIX PERF 28] pcall: helper dung plr.Character.Head -> nhan vat chet la thread ESP chet im lang
-                    task.wait(0.4) -- [FIX FPS 4] moi frame -> 0.4s
+                    __DIO_wait(0.4) -- [FIX FPS 4] moi frame -> 0.4s
                 end
             end)
         end
@@ -10130,7 +10165,7 @@ Tabs.Esp:AddToggle({
             task.spawn(function()
                 while ColorEsp do
 pcall(HakiClorEsp) -- [FIX PERF 28] pcall: helper dung plr.Character.Head -> nhan vat chet la thread ESP chet im lang
-                    task.wait(0.4) -- [FIX FPS 4] moi frame -> 0.4s
+                    __DIO_wait(0.4) -- [FIX FPS 4] moi frame -> 0.4s
                 end
             end)
         end
@@ -10155,7 +10190,7 @@ Tabs.Esp:AddToggle({
             task.spawn(function()
                 while ESPGear do
 pcall(gearEsp) -- [FIX PERF 28] pcall: helper dung plr.Character.Head -> nhan vat chet la thread ESP chet im lang
-                    task.wait(0.4) -- [FIX FPS 4] moi frame -> 0.4s
+                    __DIO_wait(0.4) -- [FIX FPS 4] moi frame -> 0.4s
                 end
             end)
         end
@@ -10180,7 +10215,7 @@ Tabs.Esp:AddToggle({
             task.spawn(function()
                 while EspEventIsland do
 pcall(EventIslandEsp) -- [FIX PERF 28] pcall: helper dung plr.Character.Head -> nhan vat chet la thread ESP chet im lang
-                    task.wait(0.4) -- [FIX FPS 4] moi frame -> 0.4s
+                    __DIO_wait(0.4) -- [FIX FPS 4] moi frame -> 0.4s
                 end
             end)
         end
@@ -10201,7 +10236,7 @@ Tabs.Esp:AddToggle({
             task.spawn(function()
                 while advanEsp do
 pcall(AdvanFruitEsp) -- [FIX PERF 28] pcall: helper dung plr.Character.Head -> nhan vat chet la thread ESP chet im lang
-                    task.wait(0.4) -- [FIX FPS 4] moi frame -> 0.4s
+                    __DIO_wait(0.4) -- [FIX FPS 4] moi frame -> 0.4s
                 end
             end)
         end
@@ -10266,7 +10301,7 @@ end
 local stockParagraph = Tabs.Raids:AddParagraph("Stock Fruit", "Loading...")
 
 task.spawn(function()
-    while task.wait(60) do
+    while __DIO_wait(60) do
         pcall(function()
             stockParagraph:SetDesc(getFruitStock())
         end)
@@ -10286,7 +10321,7 @@ Callback = function(Value)
   _G.Random_Auto = Value
 end})
 spawn(function()
-  while task.wait(1) do -- [FIX PERF 52a] Sec -> 1 remote mua fruit ngau nhien 4 lan/s thanh 1 lan/s
+  while __DIO_wait(1) do -- [FIX PERF 52a] Sec -> 1 remote mua fruit ngau nhien 4 lan/s thanh 1 lan/s
    	pcall(function()
       if _G.Random_Auto then replicated.Remotes.CommF_:InvokeServer("Cousin","Buy") end 
     end)
@@ -10300,7 +10335,7 @@ Callback = function(Value)
   _G.DropFruit = Value
 end})
 spawn(function()
-  while task.wait(1) do -- [FIX PERF 62] 0.6 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+  while __DIO_wait(1) do -- [FIX PERF 62] 0.6 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
     if _G.DropFruit then
       pcall(function() DropFruits() end)
     end
@@ -10314,7 +10349,7 @@ Callback = function(Value)
   _G.StoreF = Value
 end})
 spawn(function()
-  while task.wait(1) do -- [FIX PERF 62] 0.6 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+  while __DIO_wait(1) do -- [FIX PERF 62] 0.6 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
     if _G.StoreF then
       pcall(function() UpdStFruit() end)
     end
@@ -10328,7 +10363,7 @@ Callback = function(Value)
   _G.TwFruits = Value
 end})
 spawn(function()
-  while task.wait(Sec) do
+  while __DIO_wait(Sec) do
     if _G.TwFruits then
       pcall(function()
         for _,x1 in pairs(workspace:GetChildren()) do
@@ -10346,7 +10381,7 @@ Callback = function(Value)
   _G.InstanceF = Value
 end})
 spawn(function()
-  while task.wait(1) do -- [FIX PERF 62] 0.4 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+  while __DIO_wait(1) do -- [FIX PERF 62] 0.4 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
     if _G.InstanceF then
       pcall(function() collectFruits(_G.InstanceF) end)
     end
@@ -10381,7 +10416,7 @@ Tabs.Raids:AddToggle({
 })
 spawn(function()
     pcall(function()
-        while task.wait(1) do -- [FIX PERF 34] 0.1 -> 1s: 2 remote MUA 20 lan/s = spam server; mua 1 lan/s van snipe duoc
+        while __DIO_wait(1) do -- [FIX PERF 34] 0.1 -> 1s: 2 remote MUA 20 lan/s = spam server; mua 1 lan/s van snipe duoc
             if getgenv().AutoBuyFruitSniper then
                 game:GetService("ReplicatedStorage").Remotes.CommF_:InvokeServer("GetFruits")
                 game:GetService("ReplicatedStorage").Remotes.CommF_:InvokeServer("PurchaseRawFruit", getgenv().SelectFruit)
@@ -10414,7 +10449,7 @@ Tabs.Raids:AddToggle({
     end
 })
 spawn(function()
-    while task.wait(1) do -- [FIX PERF 62] 0.1 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+    while __DIO_wait(1) do -- [FIX PERF 62] 0.1 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
         pcall(function()
             if getgenv().AutoGetFruit then
                 local fruits = {
@@ -10470,7 +10505,7 @@ end
 })
 
 task.spawn(function()
-    while task.wait(1) do
+    while __DIO_wait(1) do
         if _G.AutoChipBeli then
             pcall(function()
                 if not GetBP("Special Microchip") then
@@ -10492,7 +10527,7 @@ end
 })
 
 task.spawn(function()
-    while task.wait(1) do
+    while __DIO_wait(1) do
         if _G.AutoChipFruit then
             pcall(function()
                 if not GetBP("Special Microchip") then
@@ -10525,7 +10560,7 @@ StartR = Tabs.Raids:AddToggle({
 })
 
 task.spawn(function()
-    while task.wait(Sec) do
+    while __DIO_wait(Sec) do
         if not _G.Auto_StartRaid then continue end
 
         pcall(function()
@@ -10580,7 +10615,7 @@ spawn(function()
     local islands = {"Island 1","Island 2","Island 3","Island 4","Island 5"}
     local currentIsland = nil
 
-    while task.wait(1) do -- [FIX PERF 62] 0.3 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+    while __DIO_wait(1) do -- [FIX PERF 62] 0.3 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
         -- Tắt KillAura nếu không bật Raiding
         if not _G.Raiding then 
             _G.KillAuraFull = false
@@ -10657,7 +10692,7 @@ spawn(function()
                     _tp(safePos)
                 end
                 currentIsland = islands[idx+1]
-                task.wait(1)
+                __DIO_wait(1)
             end
         end
     end
@@ -10671,7 +10706,7 @@ Callback = function(Value)
   _G.Auto_Awakener = Value
 end})
 spawn(function()
-  while task.wait(1) do -- [FIX PERF 51] Sec -> 1 2 remote Check+Awaken 8 lan/s thanh 2 lan/s
+  while __DIO_wait(1) do -- [FIX PERF 51] Sec -> 1 2 remote Check+Awaken 8 lan/s thanh 2 lan/s
     pcall(function()
       if _G.Auto_Awakener then
         replicated.Remotes.CommF_:InvokeServer("Awakener","Check")
@@ -10689,7 +10724,7 @@ Tabs.Raids:AddToggle({
         StopTween(_G.TpLab)
         task.spawn(function() -- [FIX PERF 66] while ngay trong callback BAM thread UI (khong the tat bang cach khac); spawn de no tu chay rieng
         while _G.TpLab do
-            task.wait(0.5) -- [FIX PERF 66] wait() moi frame -> 0.5s (topos tu giu vi tri lien tuc nen du)
+            __DIO_wait(0.5) -- [FIX PERF 66] wait() moi frame -> 0.5s (topos tu giu vi tri lien tuc nen du)
             if _G.TpLab then
                 if World2 and _G.TpLab then
                     topos(CFrame.new(-6438.73535, 250.645355, -4501.50684))
@@ -10727,7 +10762,7 @@ Tabs.Raids:AddToggle({
 })
 
 spawn(function()
-    while task.wait(1) do  
+    while __DIO_wait(1) do  
         if getgenv().AutoBuyMicrochipLaw then
             pcall(function()
                 game:GetService("ReplicatedStorage").Remotes.CommF_:InvokeServer("BlackbeardReward","Microchip","2")
@@ -10746,7 +10781,7 @@ Tabs.Raids:AddToggle({
 })
 
 spawn(function()
-    while task.wait(1) do  
+    while __DIO_wait(1) do  
         if getgenv().AutoStartLawRaids then
             pcall(function()
                 fireclickdetector(workspace.Map.CircleIsland.RaidSummon.Button.Main.ClickDetector)
@@ -10763,7 +10798,7 @@ Callback = function(Value)
   _G.AutoLawKak = Value
 end})
 spawn(function()
-  while task.wait(Sec) do
+  while __DIO_wait(Sec) do
     if _G.AutoLawKak then
       pcall(function()
         local v = GetConnectionEnemies("Order")
@@ -10796,7 +10831,7 @@ Tabs.Raids:AddToggle({
 local FARM_RANGE = 5000
 
 spawn(function()
-    while task.wait(1) do -- [FIX PERF 62] 0.3 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+    while __DIO_wait(1) do -- [FIX PERF 62] 0.3 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
         if not _G.AutoFarmDungeon then continue end
 
         pcall(function()
@@ -10855,7 +10890,7 @@ local function GetCurrentFloor()
 end
 
 task.spawn(function()
-    while task.wait(1) do -- [FIX PERF 62] 0.3 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+    while __DIO_wait(1) do -- [FIX PERF 62] 0.3 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
         if not _G.TPFloor1 then
             tp1Done = false
             continue
@@ -10883,7 +10918,7 @@ Tabs.Raids:AddToggle({
 local tp2Done = false
 
 task.spawn(function()
-    while task.wait(1) do -- [FIX PERF 62] 0.3 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+    while __DIO_wait(1) do -- [FIX PERF 62] 0.3 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
         if not _G.TPFloor2 then
             tp2Done = false
             continue
@@ -10931,7 +10966,7 @@ local function GetHighestFloor()
 end
 
 task.spawn(function()
-    while task.wait(1) do -- [FIX PERF 62] 0.3 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+    while __DIO_wait(1) do -- [FIX PERF 62] 0.3 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
         if not _G.TPFloor3 then
             tp3Done = false
             continue
@@ -10980,7 +11015,7 @@ local function GetNearestExit()
 end
 
 task.spawn(function()
-    while task.wait(1) do -- [FIX PERF 62] 0.3 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+    while __DIO_wait(1) do -- [FIX PERF 62] 0.3 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
         if not _G.TPFloor4 then
             tp4Done = false
             continue
@@ -11006,7 +11041,7 @@ local __indexPlayer = Tabs.Combat:AddParagraph("All Players On Server", "")
 
 spawn(function()
     local __prevP = nil -- [FIX PERF 31] SetDesc chi khi gia tri DOI (ui khong ve lai voi cung chuoi)
-        while task.wait(1) do -- [FIX FPS 2] 0.1s -> 1s: dem player khong can 10 lan/s
+        while __DIO_wait(1) do -- [FIX FPS 2] 0.1s -> 1s: dem player khong can 10 lan/s
         pcall(function()
             local playerCount = #game:GetService("Players"):GetPlayers()
             local __v = "All Players : " .. playerCount .. (playerCount == 12 and " / 12 [Max]" or " / 12")
@@ -11033,7 +11068,7 @@ Checking_AimStatus = function()
 end
 
 spawn(function()
-    while task.wait(1) do -- [FIX PERF 62] 0.2 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+    while __DIO_wait(1) do -- [FIX PERF 62] 0.2 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
         pcall(function()
             if _G.AimMethod then
                 if (_G.AimCam or _G.AimbotGun) then
@@ -11088,7 +11123,7 @@ Tabs.Combat:AddToggle({
         SpectatePlys = Value
         spawn(function()
             repeat
-                task.wait(0.1)
+                __DIO_wait(0.1)
                 local __sp = game:GetService("Players"):FindFirstChild(_G.PlayersList) -- [FIX PERF 29] target doi man hinh/chet -> Character/Humanoid nil lam chet thread spectate va mat cleanup camera
                 if __sp and __sp.Character and __sp.Character:FindFirstChild("Humanoid") then
                     workspace.Camera.CameraSubject = __sp.Character.Humanoid
@@ -11118,7 +11153,7 @@ Tabs.Combat:AddToggle({
 })
 
 spawn(function()
-    while task.wait(0.1) do -- [FIX LAG] mỗi frame -> 0.1s
+    while __DIO_wait(0.1) do -- [FIX LAG] mỗi frame -> 0.1s
         pcall(function()
             if _G.AimMethod and ABmethod == "Aim Player" then
                 local target = Players:FindFirstChild(getgenv().PlayersList)
@@ -11132,7 +11167,7 @@ spawn(function()
     end
 end)
 spawn(function()
-    while task.wait(0.1) do -- [FIX LAG] mỗi frame -> 0.1s
+    while __DIO_wait(0.1) do -- [FIX LAG] mỗi frame -> 0.1s
         pcall(function()
             if _G.AimMethod and ABmethod == "Nearest Aim" then
                 local MaxDistance = math.huge
@@ -11160,7 +11195,7 @@ Tabs.Combat:AddToggle({
 })
 
 task.spawn(function()
-    while task.wait(Sec) do
+    while __DIO_wait(Sec) do
         pcall(function()
             if _G.AimCam then
                 local camera = workspace.CurrentCamera
@@ -11212,7 +11247,7 @@ Tabs.Combat:AddToggle({
 
 
 spawn(function()
-    while task.wait(1) do
+    while __DIO_wait(1) do
         if _G.AutoReceivePlayerQuest then
             pcall(function()
                 game:GetService("ReplicatedStorage").Remotes.CommF_:InvokeServer("PlayerHunter")
@@ -11231,10 +11266,10 @@ Tabs.Combat:AddToggle({
 })
 
 spawn(function()
-    while task.wait(1) do -- [FIX PERF 62] 0.1 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+    while __DIO_wait(1) do -- [FIX PERF 62] 0.1 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
         if _G.AutoPlayerHunter then
             if game.Players.LocalPlayer.PlayerGui.Main.Quest.Visible == false then
-                task.wait(0.5)
+                __DIO_wait(0.5)
                 game:GetService("ReplicatedStorage").Remotes.CommF_:InvokeServer("PlayerHunter")
             else
                 for _, target in pairs(game:GetService("Workspace").Characters:GetChildren()) do
@@ -11278,7 +11313,7 @@ Tabs.Combat:AddToggle({
 
 
 spawn(function()
-    while task.wait(1) do -- [FIX PERF 62] 0.5 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+    while __DIO_wait(1) do -- [FIX PERF 62] 0.5 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
         if _G.AutoPvP then
             local playerGui = game.Players.LocalPlayer.PlayerGui
             if playerGui and playerGui.Main and playerGui.Main:FindFirstChild("PvpDisabled") then
@@ -11301,7 +11336,7 @@ Tabs.Combat:AddToggle({
 })
 
 spawn(function()
-    while task.wait(1) do -- [FIX PERF 62] 0.1 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+    while __DIO_wait(1) do -- [FIX PERF 62] 0.1 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
         if _G.SafeMode then
             local char = game.Players.LocalPlayer.Character
             local hrp = char and char:FindFirstChild("HumanoidRootPart")
@@ -11532,7 +11567,7 @@ Tabs.Combat:AddToggle({
 })
 
 spawn(function()
-    while task.wait(1) do -- [FIX PERF 46] 0.2 -> 1: vong chay MAI MAI ca khi TAT (nhanh else); giam churn x5
+    while __DIO_wait(1) do -- [FIX PERF 46] 0.2 -> 1: vong chay MAI MAI ca khi TAT (nhanh else); giam churn x5
         pcall(function()
             local __agilChar = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
             if InfAblities then
@@ -11603,7 +11638,7 @@ Tabs.Combat:AddToggle({
 })
 
 spawn(function()
-    while task.wait(1) do -- [FIX PERF 62] 0.1 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+    while __DIO_wait(1) do -- [FIX PERF 62] 0.1 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
         if _G.AcceptAlly then
             pcall(function()
                 for _, v in pairs(ply:GetChildren()) do
@@ -11735,7 +11770,7 @@ Callback = function(Value)
   _G.TPNpc = Value
 end})
 spawn(function()
-  while task.wait(1) do -- [FIX PERF 62] 0.3 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+  while __DIO_wait(1) do -- [FIX PERF 62] 0.3 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
     if _G.TPNpc then
 	 pcall(function()
        for __, v in pairs(replicated.NPCs:GetChildren()) do
@@ -11880,7 +11915,7 @@ __DIO_FlyTo = function(targetCF, arriveDist)
         end
         shouldTween = true -- lam moi moi nhop (phong-double stomp)
         _tp(targetCF) -- dung dung tween cua source (_tp -> block); gui lai neu mat giua duong
-        task.wait(0.25) -- vong phan xa di chuyen - chuan KEEP
+        __DIO_wait(0.25) -- vong phan xa di chuyen - chuan KEEP
     end
     __DIO_FlyBusy = false -- [FIX FLYBUSY] tha co o moi nhanh thoat
     shouldTween = __old
@@ -12185,7 +12220,7 @@ Tabs.Misc:AddButton({
         end
 
         for _, code in ipairs(codes) do
-            task.wait(0)
+            __DIO_wait(0)
             pcall(function()
                 if RedeemRemote.InvokeServer then
                     RedeemRemote:InvokeServer(code)
@@ -12284,7 +12319,7 @@ local function fetchServersData(placeId, limit)
     end
   end
   local commonLoadTime = 0.5
-  task.wait(commonLoadTime)
+  __DIO_wait(commonLoadTime)
   local pingThreshold = 100
   local serverStats = StatsService.Network.ServerStatsItem
   local dataPing = serverStats["Data Ping"]:GetValueString()
@@ -12398,7 +12433,7 @@ Man3Pos_Miti = CFrame.new(-12471.169921875, 374.94024658203, -7551.677734375)
 HydraPos_Miti = CFrame.new(5748.7587890625, 610.44982910156, -267.81704711914)
 HydratoCastle = CFrame.new(-5036.0, 315.0, -3179.0)
 spawn(function()
-  while task.wait(1) do -- [FIX PERF 62] 0.1 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+  while __DIO_wait(1) do -- [FIX PERF 62] 0.1 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
     pcall(function()
       if _G.PortalUnLock then        
          if Attack.Pos(CstlePos_Miti,8) then
@@ -12463,7 +12498,7 @@ Callback = function(Value)
   OldTintColorc = c.TintColor
   OldTintColore = e.TintColor    
   if not _G.RTXMode then return end
-  while _G.RTXMode do task.wait(1) -- [FIX PERF 65] wait() = 60 lan/s set Lighting + FindChild; 1 lan/s du vi Lighting khong tu reset
+  while _G.RTXMode do __DIO_wait(1) -- [FIX PERF 65] wait() = 60 lan/s set Lighting + FindChild; 1 lan/s du vi Lighting khong tu reset
     a.Ambient = Color3.fromRGB(33, 33, 33)
     a.Brightness = 0.3
     c.Brightness = 0.176
@@ -12580,7 +12615,7 @@ Callback = function(Value)
   _G.daylightN = Value
 end})
 task.spawn(function()
-  while task.wait(1) do -- [FIX PERF 62] 0.1 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+  while __DIO_wait(1) do -- [FIX PERF 62] 0.1 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
     if _G.daylightN then
       if _G.SelectDN == "Day" then
         Lighting.ClockTime = 12
@@ -12611,7 +12646,7 @@ Callback = function(Value)
   _G.WalkWater = Value
 end})
 spawn(function()
-  while task.wait(1) do -- [FIX PERF 62] 0.25 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
+  while __DIO_wait(1) do -- [FIX PERF 62] 0.25 -> 1 (yeu cau user: uu tien FPS; vong poll gated nen logic khong time-out)
     if _G.WalkWater then
       pcall(function()
 	   if plr.Character and plr.Character:FindFirstChild("LeftFoot") then
@@ -13001,7 +13036,7 @@ local function DisableCameraShake()
 end
 
 local function StartMainLoops()
-    -- [FIX LAG] bản cũ: while task.wait(Rate~0) => spam 60 lần/s MÃI MÃI kể cả ĐỨNG YÊN,
+    -- [FIX LAG] bản cũ: while __DIO_wait(Rate~0) => spam 60 lần/s MÃI MÃI kể cả ĐỨNG YÊN,
     -- và KHÔNG bao giờ kiểm tra FastAttackModule.Enabled => tắt toggle vẫn đánh (và ngược lại
     -- vòng lặp while-condition chết cứng khi sửa kiểu cũ). Giờ: vòng lặp sống mãi, chỉ ĐÁNH
     -- khi Fast Attack bật (Initialize) VÀ có mục tiêu trong tầm (tự kiểm trong ExecuteFastAttack).
@@ -13012,7 +13047,7 @@ local function StartMainLoops()
                     FastAttackModule.ExecuteFastAttack()
                 end)
             end
-            task.wait(math.max(FastAttackModule.Rate or 0.1, 0.01))
+            __DIO_wait(math.max(FastAttackModule.Rate or 0.1, 0.01))
         end
     end)
 
@@ -13023,7 +13058,7 @@ local function StartMainLoops()
             if FastAttackModule.Enabled and _G.Seriality then
                 pcall(HitRegistrationModule.Execute)
             end
-            task.wait(0.3) -- [FIX PERF 8] 0.15 -> 0.3: he HitRegistration nang nhat (seed InvokeServer + remote ma hoa) nen ha tan suat; he ExecuteFastAttack van giu 0.1
+            __DIO_wait(0.3) -- [FIX PERF 8] 0.15 -> 0.3: he HitRegistration nang nhat (seed InvokeServer + remote ma hoa) nen ha tan suat; he ExecuteFastAttack van giu 0.1
         end
     end)
 end
