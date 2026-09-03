@@ -6004,7 +6004,7 @@ spawn(function()
       if _G.IceBossRen then
         local v = GetConnectionEnemies("Awakened Ice Admiral")
         if v then repeat task.wait()Attack.Kill(v,_G.IceBossRen)until _G.IceBossRen == false or not v.Parent or v.Humanoid.Health <= 0
-        else _tp(CFrame.new(5668.9780273438, 28.519989013672, -6483.3520507813))
+        else __DIO_FlyTo(CFrame.new(5668.9780273438, 28.519989013672, -6483.3520507813), 10) -- [FIX SYNC-AUTO] bay that toi vung hunt Ice Admiral
         end
       end
     end
@@ -6758,18 +6758,18 @@ spawn(function()
         if plr:FindFirstChild("WeaponAssetCache") then
           if not GetBP("Superhuman") then                    
             if not GetBP("Black Leg") then
-            if (M_Beli >= 150000) then replicated.Remotes.CommF_:InvokeServer("BuyBlackLeg") end
+            if (M_Beli >= 150000) and __DIO_FlyTo(__DIO_MeleeCF("BuyBlackLeg"), 15) then replicated.Remotes.CommF_:InvokeServer("BuyBlackLeg") end -- [FIX SYNC-AUTO] bay den teacher (CF user) roi moi mua
             elseif GetBP("Black Leg") and GetBP("Black Leg").Level.Value < 299 then _G.Level = true elseif GetBP("Black Leg") and GetBP("Black Leg").Level.Value >= 300 then _G.Level = false end                        
             if not GetBP("Electro") then
-            if (M_Beli >= 500000) then replicated.Remotes.CommF_:InvokeServer("BuyElectro") end
+            if (M_Beli >= 500000) and __DIO_FlyTo(__DIO_MeleeCF("BuyElectro"), 15) then replicated.Remotes.CommF_:InvokeServer("BuyElectro") end -- [FIX SYNC-AUTO]
             elseif GetBP("Electro") and GetBP("Electro").Level.Value < 299 then _G.Level = true elseif GetBP("Electro") and GetBP("Electro").Level.Value >= 300 then _G.Level = false end                        
             if not GetBP("Fishman Karate") then
-            if (M_Beli >= 750000) then replicated.Remotes.CommF_:InvokeServer("BuyFishmanKarate") end
+            if (M_Beli >= 750000) and __DIO_FlyTo(__DIO_MeleeCF("BuyFishmanKarate"), 15) then replicated.Remotes.CommF_:InvokeServer("BuyFishmanKarate") end -- [FIX SYNC-AUTO]
             elseif GetBP("Fishman Karate") and GetBP("Fishman Karate").Level.Value < 299 then _G.Level = true elseif GetBP("Fishman Karate") and GetBP("Fishman Karate").Level.Value >= 300 then _G.Level = false end                        
             if not GetBP("Dragon Claw") then
-            if (M_Frag >= 1500) then replicated.Remotes.CommF_:InvokeServer("BlackbeardReward","DragonClaw","2") end
+            if (M_Frag >= 1500) and __DIO_FlyTo(__DIO_MeleeCF("BlackbeardReward"), 15) then replicated.Remotes.CommF_:InvokeServer("BlackbeardReward","DragonClaw","2") end -- [FIX SYNC-AUTO]
             elseif GetBP("Dragon Claw") and GetBP("Dragon Claw").Level.Value < 299 then _G.Level = true elseif GetBP("Dragon Claw") and GetBP("Dragon Claw").Level.Value >= 300 then _G.Level = false end
-            replicated.Remotes.CommF_:InvokeServer("BuySuperhuman")          
+            if __DIO_FlyTo(__DIO_MeleeCF("BuySuperhuman"), 15) then replicated.Remotes.CommF_:InvokeServer("BuySuperhuman") end -- [FIX SYNC-AUTO] den Martial Arts Master (CF user) roi moi mua          
           end
         end        
       end
@@ -6789,16 +6789,16 @@ spawn(function()
       pcall(function()
         if plr:FindFirstChild("WeaponAssetCache") then  
           if not GetBP("Death Step") then          
-            if not GetBP("Black Leg") then replicated.Remotes.CommF_:InvokeServer("BuyBlackLeg") end
-            if GetBP("Black Leg") and GetBP("Black Leg").Level.Value >= 400 then replicated.Remotes.CommF_:InvokeServer("BuyDeathStep") _G.Level = false elseif GetBP("Black Leg") and GetBP("Black Leg").Level.Value < 399 then _G.Level = true end
+            if not GetBP("Black Leg") then if __DIO_FlyTo(__DIO_MeleeCF("BuyBlackLeg"), 15) then replicated.Remotes.CommF_:InvokeServer("BuyBlackLeg") end end -- [FIX SYNC-AUTO]
+            if GetBP("Black Leg") and GetBP("Black Leg").Level.Value >= 400 then if __DIO_FlyTo(__DIO_MeleeCF("BuyDeathStep"), 15) then replicated.Remotes.CommF_:InvokeServer("BuyDeathStep") end _G.Level = false elseif GetBP("Black Leg") and GetBP("Black Leg").Level.Value < 399 then _G.Level = true end
             if GetBP("Black Leg") or GetBP("Black Leg").Level.Value >= 400 then
             if workspace.Map.IceCastle.Hall.LibraryDoor.PhoeyuDoor.Transparency == 0 then            
-              if GetBP("Library Key") then repeat wait() _tp(CFrame.new(6371.2001953125, 296.63433837890625, -6841.18115234375)) until not _G.AutoDeathStep or (Root.Position - CFrame.new(6371.2001953125, 296.63433837890625, -6841.18115234375).Position).Magnitude <= 5 -- [FIX PERF 61] so sanh float == khong bao gio khop -> step khong bao gio xong
-		        if ((Root.Position - CFrame.new(6371.2001953125, 296.63433837890625, -6841.18115234375).Position).Magnitude <= 5) then replicated.Remotes.CommF_:InvokeServer("BuyDeathStep") end -- [FIX PERF 61]     
+              if GetBP("Library Key") then if GetBP("Library Key") then if __DIO_FlyTo(CFrame.new(6371.2001953125, 296.63433837890625, -6841.18115234375), 5) then replicated.Remotes.CommF_:InvokeServer("BuyDeathStep") end end -- [FIX SYNC-AUTO] bay that (tween truc tiep HRP thay repeat-_tp tren block) + den noi (<=5) moi mua; giu nguyen dieu kien PhoeyuDoor + Library Key
+-- [FIX SYNC-AUTO] (dong guard cu da thay bang FlyTo ben tren)
 		        elseif not GetBP("Library Key") then
 		          local v = GetConnectionEnemies("Awakened Ice Admiral")
 		          if v then	repeat wait() Attack.Kill(v,_G.AutoDeathStep) until not v.Parent or v.Humanoid.Health <= 0 or _G.AutoDeathStep == false or GetBP("Library Key") or GetBP("Death Step")
-	              else _tp(CFrame.new(5668.9780273438, 28.519989013672, -6483.3520507813))
+	              else __DIO_FlyTo(CFrame.new(5668.9780273438, 28.519989013672, -6483.3520507813), 10) -- [FIX SYNC-AUTO] bay that toi vung hunt Ice Admiral
 	              end
 		        end		    
               end
@@ -6822,20 +6822,21 @@ spawn(function()
       pcall(function()
         if plr:FindFirstChild("WeaponAssetCache") then  
           if not GetBP("Sharkman Karate") then          
-            if not GetBP("Fishman Karate") then replicated.Remotes.CommF_:InvokeServer("BuyFishmanKarate") end
-            if GetBP("Fishman Karate") and GetBP("Fishman Karate").Level.Value >= 400 then replicated.Remotes.CommF_:InvokeServer("BuySharkmanKarate") _G.Level = false elseif GetBP("Fishman Karate") and GetBP("Fishman Karate").Level.Value < 399 then _G.Level = true end
+            if not GetBP("Fishman Karate") then if __DIO_FlyTo(__DIO_MeleeCF("BuyFishmanKarate"), 15) then replicated.Remotes.CommF_:InvokeServer("BuyFishmanKarate") end end -- [FIX SYNC-AUTO]
+            if GetBP("Fishman Karate") and GetBP("Fishman Karate").Level.Value >= 400 then if __DIO_FlyTo(__DIO_MeleeCF("BuySharkmanKarate"), 15) then replicated.Remotes.CommF_:InvokeServer("BuySharkmanKarate") end _G.Level = false elseif GetBP("Fishman Karate") and GetBP("Fishman Karate").Level.Value < 399 then _G.Level = true end
             if GetBP("Fishman Karate") or GetBP("Fishman Karate").Level.Value >= 400 then           
               if GetBP("Water Key") then
 		        if string.find(replicated.Remotes.CommF_:InvokeServer("BuySharkmanKarate"), "keys") then  
 			      if GetBP("Water Key") then
-			        repeat wait() _tp(CFrame.new(-2604.6958, 239.432526, -10315.1982, 0.0425701365, 0, -0.999093413, 0, 1, 0, 0.999093413, 0, 0.0425701365)) until not _G.Auto_SharkMan_Karate or (Root.Position == CFrame.new(-2604.6958, 239.432526, -10315.1982, 0.0425701365, 0, -0.999093413, 0, 1, 0, 0.999093413, 0, 0.0425701365).Position)
+			        if __DIO_FlyTo(CFrame.new(-2604.6958, 239.432526, -10315.1982, 0.0425701365, 0, -0.999093413, 0, 1, 0, 0.999093413, 0, 0.0425701365), 5) then -- [FIX SYNC-AUTO] bay that + den noi moi mua; thay repeat-_tp + so sanh Position == float chinh xac (khong bao gio khop -> buoc mua chet sau repeat)
 	                replicated.Remotes.CommF_:InvokeServer("BuySharkmanKarate")
+                    end -- [FIX SYNC-AUTO] dong if FlyTo
 		          end
 		        end
 		      elseif not GetBP("Water Key") then
 		        local v = GetConnectionEnemies("Tide Keeper")
 		        if v then repeat wait() Attack.Kill(v,_G.Auto_SharkMan_Karate)until not v.Parent or v.Humanoid.Health <= 0 or _G.Auto_SharkMan_Karate == false or GetBP("Water Key") or GetBP("Sharkman Karate")		
-	            else _tp(CFrame.new(-3053.9814453125, 237.18954467773, -10145.0390625))
+	            else __DIO_FlyTo(CFrame.new(-3053.9814453125, 237.18954467773, -10145.0390625), 10) -- [FIX SYNC-AUTO] bay that toi vung hunt Tide Keeper
 	            end
 		      end		                  
             end          
@@ -6857,10 +6858,10 @@ spawn(function()
     if _G.Auto_Electric_Claw then
       pcall(function()
         if plr:FindFirstChild("WeaponAssetCache") then 
-        if not GetBP("Electro") then replicated.Remotes.CommF_:InvokeServer("BuyElectro") end        
+        if not GetBP("Electro") then if __DIO_FlyTo(__DIO_MeleeCF("BuyElectro"), 15) then replicated.Remotes.CommF_:InvokeServer("BuyElectro") end end -- [FIX SYNC-AUTO]        
           if GetBP("Electro") and GetBP("Electro").Level.Value >= 400 then
-            if replicated.Remotes.CommF_:InvokeServer("BuyElectricClaw", "Start") == nil then notween(CFrame.new(-12548, 337, -7481)) end
-            replicated.Remotes.CommF_:InvokeServer("BuyElectricClaw")
+            if replicated.Remotes.CommF_:InvokeServer("BuyElectricClaw", "Start") == nil then __DIO_FlyTo(CFrame.new(-12548, 337, -7481), 10) end -- [FIX SYNC-AUTO] bay that thay notween (instant)
+            if __DIO_FlyTo(__DIO_MeleeCF("BuyElectricClaw"), 15) then replicated.Remotes.CommF_:InvokeServer("BuyElectricClaw") end -- [FIX SYNC-AUTO] den Previous Hero (CF user) roi moi mua
           elseif GetBP("Electro") and GetBP("Electro").Level.Value < 400 then
             repeat _G.AutoFarm_Bone = true wait() until not _G.Auto_Electric_Claw or GetBP("Electric Claw") _G.AutoFarm_Bone = false
           end
@@ -6881,8 +6882,8 @@ spawn(function()
     if _G.AutoDragonTalon then
       pcall(function()
         if plr:FindFirstChild("WeaponAssetCache") then 
-        if not GetBP("Dragon Claw") then replicated.Remotes.CommF_:InvokeServer("BlackbeardReward","DragonClaw","2") end        
-          if GetBP("Dragon Claw") and GetBP("Dragon Claw").Level.Value >= 400 then replicated.Remotes.CommF_:InvokeServer("Bones","Buy",1,1) replicated.Remotes.CommF_:InvokeServer("BuyDragonTalon")
+        if not GetBP("Dragon Claw") then if __DIO_FlyTo(__DIO_MeleeCF("BlackbeardReward"), 15) then replicated.Remotes.CommF_:InvokeServer("BlackbeardReward","DragonClaw","2") end end -- [FIX SYNC-AUTO]        
+          if GetBP("Dragon Claw") and GetBP("Dragon Claw").Level.Value >= 400 then if __DIO_FlyTo(__DIO_MeleeCF("BuyDragonTalon"), 15) then replicated.Remotes.CommF_:InvokeServer("Bones","Buy",1,1) replicated.Remotes.CommF_:InvokeServer("BuyDragonTalon") end -- [FIX SYNC-AUTO] bay den Uzoth (CF user) roi moi doi Bones + mua
           elseif GetBP("Dragon Claw") and GetBP("Dragon Claw").Level.Value < 400 then repeat _G.AutoFarm_Bone = true wait() until not _G.AutoDragonTalon or GetBP("Dragon Talon") _G.AutoFarm_Bone = false
           end         
         end
@@ -6934,7 +6935,7 @@ spawn(function()
         elseif replicated.Remotes.CommF_:InvokeServer("BuyGodhuman",true) == 3 then
           return nil
         else
-          replicated.Remotes.CommF_:InvokeServer("BuyGodhuman")
+          if __DIO_FlyTo(__DIO_MeleeCF("BuyGodhuman"), 15) then replicated.Remotes.CommF_:InvokeServer("BuyGodhuman") end -- [FIX SYNC-AUTO] den Ancient Monk (CF user) roi moi mua
         end
       end
     end)
@@ -6985,7 +6986,7 @@ spawn(function()
 		    else replicated.Remotes.CommF_:InvokeServer("TravelDressrosa")
 	        end
           end
-        else replicated.Remotes.CommF_:InvokeServer("BuySanguineArt")
+        else if __DIO_FlyTo(__DIO_MeleeCF("BuySanguineArt"), 15) then replicated.Remotes.CommF_:InvokeServer("BuySanguineArt") end -- [FIX SYNC-AUTO] den Shafi (CF user) roi moi mua
         end
       end)
     end
@@ -11833,6 +11834,61 @@ local __DIO_BUY_MELEE_CF = {
         sea3 = CFrame.new(-16515.066406, 22.811996, -188.572998, 0.999392, 0.000000, 0.034869, 0.000000, 1.000000, 0.000000, -0.034869, 0.000000, 0.999392)
     }
 }
+-- [FIX BUY-MELEE 3/4] Helper di chuyen DUNG that: tween TRUC TIEP len HumanoidRootPart.
+-- PHAN TICH LOI (user bao: "chi hien dang bay den con nhan vat khong bay"): _tp cu TWEEN LEN PART "block"
+-- (part ao cua he thong farm, L759) - nhan vat chi di theo block khi co toggle farm dang giu OnFarm/loop theo.
+-- Nut bam/auto mua dung mot minh -> tween chay tren block, nhan vat dung yen. Helper nay khong qua block,
+-- khong dong shouldTween -> di chuyen duoc bat ke dang bat toggle nao hay khong.
+__DIO_MeleeCF = function(key)
+    local entry = __DIO_BUY_MELEE_CF[key]
+    if not entry then return nil end
+    return (sea1 and entry.sea1) or (sea2 and entry.sea2) or entry.sea3
+end
+__DIO_FlyTo = function(targetCF, arriveDist)
+    if not targetCF then return false end
+    local __char = plr.Character
+    local __hrp = __char and __char:FindFirstChild("HumanoidRootPart")
+    if not __hrp then return false end
+    local __hum = __char:FindFirstChildOfClass("Humanoid")
+    if __hum and __hum.Sit then __hum.Sit = false end -- roi ghe de HRP tu do
+    arriveDist = arriveDist or 15
+    local TS = game:GetService("TweenService")
+    local curTween = nil
+    local t0 = tick()
+    local lastPos = __hrp.Position
+    local lastProgress = tick()
+    while tick() - t0 < 300 do -- tran 300s (cross-sea xa nhat ~62k stud van kip voi speed slider)
+        local c = plr.Character
+        local h = c and c:FindFirstChild("HumanoidRootPart")
+        if not h then break end
+        local dist = (h.Position - targetCF.Position).Magnitude
+        if dist <= arriveDist then
+            pcall(function() if curTween then curTween:Cancel() end end)
+            return true -- DA DEN NOI
+        end
+        local spd = tonumber(_G.TweenSpeed) or 300
+        if spd < 1 then spd = 1 end
+        if dist <= 150 then spd = 600 end -- quy tac boost 600 CHI khi di bo gan dich (spec chung voi _tp)
+        local stalled = (tick() - lastProgress) > 3 and (h.Position - lastPos).Magnitude < 1
+        if not curTween or curTween.PlaybackState ~= Enum.PlaybackState.Playing or stalled then
+            -- gui lai tween tu vi tri hien tai (bi vang / tween chet / dung 3s khong tien bo)
+            pcall(function() if curTween then curTween:Cancel() end end)
+            pcall(function()
+                curTween = TS:Create(h, TweenInfo.new(math.max(dist / spd, 0.1), Enum.EasingStyle.Linear), {CFrame = CFrame.new(targetCF.Position)})
+                curTween:Play()
+            end)
+            lastPos = h.Position
+            lastProgress = tick()
+        end
+        if (h.Position - lastPos).Magnitude >= 1 then
+            lastPos = h.Position
+            lastProgress = tick()
+        end
+        task.wait(0.25) -- vong phan xia (di chuyen) - giu 0.25 theo chuan KEEP
+    end
+    pcall(function() if curTween then curTween:Cancel() end end)
+    return false -- het thoi gian khong den noi
+end
 BuyMelee = function(npcNames, ...)
     -- [FIX BUY-MELEE 2/2] Khong con tim NPC theo ten (NPC khong load / sai sea -> nut Cam). Chon CF theo sea -> tween -> den noi moi mua.
     local key = (...)
@@ -11847,36 +11903,17 @@ BuyMelee = function(npcNames, ...)
         pcall(function() Window:Notify({Title = "Buy Melee", Content = "Khong co toa do cho sea hien tai: " .. tostring(key), Duration = 3}) end)
         return
     end
-    task.spawn(function() -- [bai hoc PERF 66] khong block thread UI trong callback khi tween co the rat lau (cross-sea)
-        local standCF = targetCF * CFrame.new(0, 0, 4) -- dung le 4 stud nhu luong cu, khong de dung de len teacher
-        local __char = plr.Character
-        local __hrp = __char and __char:FindFirstChild("HumanoidRootPart")
-        if not __hrp then return end
-        local spd = tonumber(_G.TweenSpeed) or 300
-        if spd < 1 then spd = 1 end
-        local dist0 = (standCF.Position - __hrp.Position).Magnitude
-        local timeout = dist0 / spd + 25 -- du phong cho cross-sea; truoc day cam 10s -> khong bao gio kip cross-sea
-        if timeout < 15 then timeout = 15 end
-        if timeout > 300 then timeout = 300 end
-        local oldShouldTween = shouldTween
-        shouldTween = true -- [bug an cu] _tp tu huy tween khi shouldTween = false, giu true trong luc di roi tra lai
+    task.spawn(function() -- [FIX BUY-MELEE 4/4] khong block UI; bay that bang __DIO_FlyTo (tween truc tiep HRP, khong qua block cua he thong farm)
+        local standCF = targetCF * CFrame.new(0, 0, 4) -- dung le 4 stud truoc teacher
+        local __char0 = plr.Character
+        local __hrp0 = __char0 and __char0:FindFirstChild("HumanoidRootPart")
+        if not __hrp0 then return end
+        local dist0 = (standCF.Position - __hrp0.Position).Magnitude
         pcall(function() Window:Notify({Title = "Buy Melee", Content = "Dang bay den " .. tostring(npcNames[1]) .. " (" .. string.format("%.0f", dist0) .. " studs)", Duration = 3}) end)
-        local t0 = tick()
-        while tick() - t0 < timeout do
-            local c2 = plr.Character
-            local h2 = c2 and c2:FindFirstChild("HumanoidRootPart")
-            if not h2 then break end
-            if (h2.Position - standCF.Position).Magnitude <= 15 then break end
-            _tp(standCF) -- gui lai tween neu bi vang/xa dot xuat
-            task.wait(1) -- [PERF 62 chuan] poll 1s thay 0.25s nhu cu
-        end
-        shouldTween = oldShouldTween
-        local c3 = plr.Character
-        local h3 = c3 and c3:FindFirstChild("HumanoidRootPart")
-        if h3 and (h3.Position - standCF.Position).Magnitude <= 15 then
+        if __DIO_FlyTo(standCF, 15) then
             replicated.Remotes.CommF_:InvokeServer(unpack(buyArgs)) -- DA DEN NOI MOI GOI MUA (dung args goc cua tung nut)
         else
-            pcall(function() Window:Notify({Title = "Buy Melee", Content = "Khong den duoc teacher trong " .. string.format("%.0f", timeout) .. "s — chua mua. Bam nut lan nua de thu lai.", Duration = 4}) end)
+            pcall(function() Window:Notify({Title = "Buy Melee", Content = "Khong den duoc teacher trong 300s - chua mua. Bam nut lan nua de thu lai.", Duration = 4}) end)
         end
     end)
 end
